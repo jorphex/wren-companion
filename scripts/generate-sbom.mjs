@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import process from 'node:process'
+import { readSourceIdentity } from './source-identity.mjs'
 
 if (!process.env.npm_execpath) throw new Error('SBOM generation must run through npm')
 
@@ -35,10 +36,7 @@ function collectProductionGraph(dependencies, parentReference) {
 }
 collectProductionGraph(productionTree.dependencies, rootReference)
 
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
-const sourceTimestamp = execFileSync('git', ['show', '-s', '--format=%cI', 'HEAD'], {
-  encoding: 'utf8'
-}).trim()
+const { commit: sourceCommit, timestamp: sourceTimestamp } = readSourceIdentity()
 const serialBytes = createHash('sha256')
   .update(`${packageJson.name}\0${packageJson.version}\0${sourceCommit}\0`)
   .update(packageLock)

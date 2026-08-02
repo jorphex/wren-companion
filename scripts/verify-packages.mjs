@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createRequire } from 'node:module'
 import { extensionArtifactFiles } from './artifact-policy.mjs'
+import { readSourceIdentity } from './source-identity.mjs'
 
 const require = createRequire(import.meta.url)
 const { AUTH_VERSION } = require('../src/auth-protocol')
@@ -91,7 +92,7 @@ if (
 const compatibility = JSON.parse(
   await readFile(join(artifacts, `frame-companion-${version}-compatibility.json`), 'utf8')
 )
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const { commit: sourceCommit } = readSourceIdentity()
 const companionRepository = packageJson.repository.url.replace(/^git\+|\.git$/g, '')
 if (
   compatibility.schemaVersion !== sourceCompatibility.schemaVersion ||

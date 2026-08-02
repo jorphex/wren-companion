@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { createRequire } from 'node:module'
 import { extensionArtifactFiles } from './artifact-policy.mjs'
+import { readSourceIdentity } from './source-identity.mjs'
 
 const require = createRequire(import.meta.url)
 const { AUTH_VERSION } = require('../src/auth-protocol')
@@ -11,7 +12,7 @@ const packageJson = JSON.parse(await readFile(new URL('../package.json', import.
 const compatibility = JSON.parse(
   await readFile(new URL('../compatibility.json', import.meta.url), 'utf8')
 )
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const { commit: sourceCommit } = readSourceIdentity()
 
 if (compatibility.protocolVersion !== AUTH_VERSION) {
   throw new Error('Compatibility metadata and authentication protocol differ')

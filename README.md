@@ -24,6 +24,22 @@
 
 ### Install
 
+Use only a companion build paired with the minimum Frame desktop commit recorded
+in its `*-compatibility.json` artifact. Published archives include checksums and
+a production SBOM; see the [release procedure](RELEASE.md).
+
+To create the browser archives locally:
+
+```bash
+› npm run package:browsers
+› npm run package:verify
+```
+
+Extract the browser ZIP before using the unpacked-development instructions
+below. Chrome and Firefox packages are currently byte-identical but named
+separately so their qualification and future browser-specific changes remain
+explicit.
+
 1. Go to `brave://extensions` or `chrome://extensions`
 2. Turn developer mode on if not already active (top-right corner)
 3. Tap "Load unpacked"
@@ -31,6 +47,12 @@
 
 For Firefox, open `about:debugging#/runtime/this-firefox`, select "Load Temporary
 Add-on", and choose `dist/manifest.json`.
+
+On first connection, compare and approve the six-digit pairing code in both
+Frame and the extension. Frame can revoke a paired credential and the extension
+settings can reset it. Pairing authenticates the extension to Frame; it does not
+authenticate the localhost Frame endpoint to the extension. See the
+[security policy](SECURITY.md) for the complete boundary.
 
 ### Related
 

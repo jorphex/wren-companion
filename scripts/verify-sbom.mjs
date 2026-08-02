@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import process from 'node:process'
+import { readSourceIdentity } from './source-identity.mjs'
 
 if (!process.env.npm_execpath) throw new Error('SBOM verification must run through npm')
 
@@ -19,10 +20,7 @@ if (
   throw new Error('SBOM root does not match the companion package')
 }
 
-const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
-const sourceTimestamp = execFileSync('git', ['show', '-s', '--format=%cI', 'HEAD'], {
-  encoding: 'utf8'
-}).trim()
+const { commit: sourceCommit, timestamp: sourceTimestamp } = readSourceIdentity()
 const serialBytes = createHash('sha256')
   .update(`${packageJson.name}\0${packageJson.version}\0${sourceCommit}\0`)
   .update(packageLock)

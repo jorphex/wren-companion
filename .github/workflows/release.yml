@@ -1,0 +1,107 @@
+name: Build a draft companion release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Optional release tag; defaults to v<package version>
+        required: false
+        type: string
+
+permissions:
+  artifact-metadata: write
+  attestations: write
+  contents: write
+  id-token: write
+
+concurrency:
+  group: companion-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm install --global npm@11.12.0
+      - name: Resolve release metadata
+        id: release
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          version=$(node --print "require('./package.json').version")
+          expected_tag="v${version}"
+          tag="${REQUESTED_TAG:-$expected_tag}"
+          if [[ "$tag" != "$expected_tag" ]]; then
+            echo "Release tag must exactly match package version: $expected_tag" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - run: npm run setup:ci
+      - run: npm audit --audit-level=high
+      - run: npm run package:browsers
+      - run: npm run package:verify
+      - name: Verify compatible desktop baseline
+        run: |
+          mapfile -t metadata < <(node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises'
+          const compatibility = JSON.parse(await readFile('compatibility.json', 'utf8'))
+          const { repository, branch, commit } = compatibility.desktop || {}
+          if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || '')) process.exit(1)
+          if (!/^[A-Za-z0-9._/-]+$/.test(branch || '') || branch.includes('..')) process.exit(1)
+          if (!/^[0-9a-f]{40}$/.test(commit || '')) process.exit(1)
+          console.log(repository)
+          console.log(branch)
+          console.log(commit)
+          NODE
+          )
+          if [[ ${#metadata[@]} -ne 3 ]]; then
+            echo 'Invalid desktop compatibility metadata' >&2
+            exit 1
+          fi
+          desktop_repository=${metadata[0]}
+          desktop_branch=${metadata[1]}
+          desktop_commit=${metadata[2]}
+          checkout=$(mktemp -d)
+          trap 'rm -rf "$checkout"' EXIT
+          git clone --quiet --filter=blob:none --no-checkout --single-branch --branch "$desktop_branch" "${desktop_repository}.git" "$checkout"
+          if ! git -C "$checkout" merge-base --is-ancestor "$desktop_commit" "refs/remotes/origin/$desktop_branch"; then
+            echo "Desktop commit $desktop_commit is not on $desktop_repository:$desktop_branch" >&2
+            exit 1
+          fi
+      - name: Attest build provenance
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: |
+            artifacts/*.zip
+            artifacts/*-compatibility.json
+            artifacts/SHA256SUMS
+      - name: Attest package SBOM
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: artifacts/*.zip
+          sbom-path: artifacts/frame-companion-${{ steps.release.outputs.version }}.cdx.json
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          remote_tag=$(git ls-remote --tags origin "refs/tags/$RELEASE_TAG" "refs/tags/$RELEASE_TAG^{}")
+          tag_commit=$(printf '%s\n' "$remote_tag" | awk '/\^\{\}$/ { print $1; found=1 } END { if (!found && NR == 1) print first } NR == 1 { first=$1 }')
+          if [[ -n "$tag_commit" && "$tag_commit" != "$GITHUB_SHA" ]]; then
+            echo "Refusing release: $RELEASE_TAG points to $tag_commit, not $GITHUB_SHA" >&2
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Refusing to modify existing release $RELEASE_TAG; delete a failed draft or use a new version" >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" artifacts/*.zip artifacts/*-compatibility.json artifacts/*.cdx.json artifacts/SHA256SUMS --target "$GITHUB_SHA" --draft --title "$RELEASE_VERSION" --notes "Automated Chrome and Firefox companion draft from $GITHUB_SHA. Install only with the desktop baseline named in the compatibility artifact."
