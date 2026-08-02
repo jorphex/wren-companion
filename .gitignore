@@ -1,6 +1,7 @@
 .cache
 .DS_Store
 dist
+artifacts
 node_modules
 Frame
 scratch.js

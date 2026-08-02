@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "desktop": {
+    "repository": "https://github.com/jorphex/frame",
+    "branch": "modernization-preview",
+    "commit": "8221b7ba10d2c65501ec5e02b51adb34da6b4a00"
+  },
+  "protocolVersion": 2
+}
