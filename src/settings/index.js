@@ -347,7 +347,7 @@ function parseOrigin(url = '') {
   const m = url.match(originDomainRegex)
 
   if (!m) {
-    console.warn(`could not parse origin: ${url}`)
+    console.warn('Could not parse active-tab origin')
     return url
   }
 
@@ -755,14 +755,10 @@ async function getInitialSettings(tabId) {
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
-  console.info('Settings panel loaded')
-
   const activeTab = await getActiveTab()
   const isInjectedTab = isInjectedUrl(activeTab?.url)
 
   const mmAppear = isInjectedTab ? await getInitialSettings(activeTab.id) : false
-
-  console.debug('Initial settings', { activeTab, isInjectedTab, mmAppear })
 
   const root = document.getElementById('root')
 
