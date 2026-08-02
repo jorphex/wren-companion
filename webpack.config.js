@@ -4,6 +4,18 @@ const TerserPlugin = require('terser-webpack-plugin')
 module.exports = [
   {
     mode: 'production',
+    entry: './src/inject.js',
+    output: {
+      publicPath: '',
+      path: path.resolve(__dirname, 'dist'),
+      filename: 'inject.js'
+    },
+    performance: {
+      hints: false
+    }
+  },
+  {
+    mode: 'production',
     entry: './src/frame.js',
     optimization: {
       minimizer: [

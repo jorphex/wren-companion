@@ -19,7 +19,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["file://*/*", "http://*/*", "https://*/*"],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["inject.js"],
       "run_at": "document_start",
       "all_frames": true
@@ -28,7 +28,7 @@
   "web_accessible_resources": [
     {
       "resources": ["frame.js"],
-      "matches": ["file://*/*", "https://*/*", "http://*/*"]
+      "matches": ["https://*/*", "http://*/*"]
     }
   ],
   "content_security_policy": {

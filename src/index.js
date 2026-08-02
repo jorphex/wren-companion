@@ -1,316 +1,264 @@
-const ethProvider = require('eth-provider')
+const { ControlClient } = require('./control-client')
+const { PageSession, derivePageOwner } = require('./page-session')
 
-const subTypes = [
-  'chainChanged',
-  'chainsChanged',
-  'accountsChanged',
-  'assetsChanged',
-  'networkChanged',
-  'message'
-]
-
-// extension state
-let provider
-let settingsPanel, activeTabId
-
-const subs = {}
-const pending = {}
+const FRAME_URL = 'ws://127.0.0.1:1248?identity=frame-extension'
+const MAX_PAGE_SOCKETS = 32
+const MAX_PAGE_SESSIONS = 256
+const MAX_PAGE_SESSIONS_PER_TAB = 8
+const MAX_GLOBAL_PENDING_REQUESTS = 512
+const MAX_GLOBAL_PENDING_BYTES = 16 * 1024 * 1024
+const MAX_TAB_PENDING_REQUESTS = 128
+const MAX_TAB_PENDING_BYTES = 4 * 1024 * 1024
+const pageSessions = new Set()
+const settingsPorts = new Set()
+const tabCapacity = new Map()
+let openPageSockets = 0
+let globalPendingRequests = 0
+let globalPendingBytes = 0
 
 const frameState = {
   connected: false,
-  availableChains: [],
-  currentChain: ''
+  availableChains: []
 }
-
-// helper functions
-const originFromUrl = (url) => {
-  if (!url) return ''
-  const path = url.split('/')
-  return `${path[0]}//${path[2]}`
-}
-const getOrigin = (sender = {}) => originFromUrl(sender.url)
-
-const subType = (pendingPayload) => {
-  try {
-    const type = pendingPayload.params[0]
-    return subTypes.includes(type) ? type : 'unknown'
-  } catch (e) {
-    return 'unknown'
-  }
-}
-
-const unsubscribeTab = (tabId) => {
-  Object.keys(pending).forEach((id) => {
-    if (pending[id].tabId === tabId) delete pending[id]
-  })
-  Object.keys(subs).forEach((sub) => {
-    if (subs[sub].tabId === tabId) {
-      provider.send({ jsonrpc: '2.0', id: 1, method: 'eth_unsubscribe', params: [sub] })
-      delete subs[sub]
-    }
-  })
-}
-
-function updateSettingsPanel() {
-  if (settingsPanel) {
-    settingsPanel.postMessage(frameState)
-  }
-}
-
-function setConnected(connected) {
-  console.debug(`Setting connected to ${connected}`)
-
-  frameState.connected = connected
-  updateSettingsPanel()
-}
-
-function setChains(chains) {
-  console.debug('Setting available chains', { chains })
-
-  frameState.availableChains = chains
-  updateSettingsPanel()
-}
-
-function setCurrentChain(chain) {
-  console.debug(`Setting current chain to ${chain}`)
-
-  frameState.currentChain = chain
-  updateSettingsPanel()
-}
+let chainsRefreshPromise
 
 function setIcon(path) {
-  chrome.action.setIcon({ path })
+  chrome.action.setIcon({ path }).catch(() => {})
 }
 
-function setPopup(popup) {
-  chrome.action.setPopup({ popup })
+function publishState() {
+  for (const port of settingsPorts) {
+    try {
+      port.postMessage({ type: 'state', ...frameState, currentChain: port.frameChainId || '' })
+    } catch {
+      // The popup may close while state is being published.
+    }
+  }
 }
 
-async function fetchAvailableChains() {
+function setPortChain(port, chainId) {
+  port.frameChainId = chainId
   try {
-    const chains = await provider.request({ method: 'wallet_getEthereumChains' })
-    setChains(chains)
-  } catch (e) {
-    console.error('Error fetching chains', e)
-    setChains([])
+    port.postMessage({ type: 'state', ...frameState, currentChain: chainId })
+  } catch {
+    // The popup may close while a chain request is resolving.
   }
 }
 
-async function sendEventToTab(tabId, event, args) {
+function setFrameState(update) {
+  Object.assign(frameState, update)
+  setIcon(frameState.connected ? 'icons/icon96good.png' : 'icons/icon96moon.png')
+  publishState()
+}
+
+function createPageSocket() {
+  if (openPageSockets >= MAX_PAGE_SOCKETS) throw new Error('Page socket capacity exceeded')
+  const socket = new WebSocket(FRAME_URL)
+  openPageSockets += 1
+  socket.addEventListener(
+    'close',
+    () => {
+      openPageSockets = Math.max(0, openPageSockets - 1)
+    },
+    { once: true }
+  )
+  return socket
+}
+
+function reservePageRequest(owner, bytes) {
+  const tab = tabCapacity.get(owner.tabId) || { requests: 0, bytes: 0 }
+  if (
+    globalPendingRequests >= MAX_GLOBAL_PENDING_REQUESTS ||
+    globalPendingBytes + bytes > MAX_GLOBAL_PENDING_BYTES ||
+    tab.requests >= MAX_TAB_PENDING_REQUESTS ||
+    tab.bytes + bytes > MAX_TAB_PENDING_BYTES
+  ) {
+    return false
+  }
+  globalPendingRequests += 1
+  globalPendingBytes += bytes
+  tabCapacity.set(owner.tabId, { requests: tab.requests + 1, bytes: tab.bytes + bytes })
+  return true
+}
+
+function releasePageRequest(owner, bytes) {
+  globalPendingRequests = Math.max(0, globalPendingRequests - 1)
+  globalPendingBytes = Math.max(0, globalPendingBytes - bytes)
+  const tab = tabCapacity.get(owner.tabId)
+  if (!tab) return
+  const next = {
+    requests: Math.max(0, tab.requests - 1),
+    bytes: Math.max(0, tab.bytes - bytes)
+  }
+  if (next.requests === 0) tabCapacity.delete(owner.tabId)
+  else tabCapacity.set(owner.tabId, next)
+}
+
+function rejectPagePort(port) {
   try {
-    return await chrome.tabs.sendMessage(tabId, { type: 'eth:event', event, args })
-  } catch (e) {
-    console.error(`Error sending event "${event}"`, e)
+    port.postMessage({ type: 'fatal' })
+  } catch {
+    port.disconnect()
+    return
+  }
+  setTimeout(() => port.disconnect(), 100)
+}
+
+function topSessionForTab(tabId) {
+  return [...pageSessions].find(
+    (session) => !session.closed && session.owner.tabId === tabId && session.owner.frameId === 0
+  )
+}
+
+async function activeTopSession(port) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!Number.isInteger(tab?.id) || typeof tab.url !== 'string') return
+  let origin
+  try {
+    origin = new URL(tab.url).origin
+  } catch {
+    return
+  }
+  const session = topSessionForTab(tab.id)
+  if (!session || session.owner.origin !== origin) return
+  port.frameTabId = tab.id
+  return session
+}
+
+const control = new ControlClient({
+  createSocket: () => new WebSocket(FRAME_URL),
+  onOpen: (client) => {
+    setFrameState({ connected: true })
+    refreshAvailableChains(client)
+  },
+  onClose: () => {
+    for (const port of settingsPorts) port.frameChainId = ''
+    setFrameState({ connected: false, availableChains: [] })
+  }
+})
+control.connect()
+
+function refreshAvailableChains(client = control) {
+  if (chainsRefreshPromise) return chainsRefreshPromise
+  chainsRefreshPromise = client
+    .request('wallet_getEthereumChains')
+    .then((chains) => setFrameState({ availableChains: Array.isArray(chains) ? chains : [] }))
+    .catch(() => {
+      if (frameState.connected) setFrameState({ availableChains: [] })
+    })
+    .finally(() => {
+      chainsRefreshPromise = undefined
+    })
+  return chainsRefreshPromise
+}
+
+async function initializeSettingsPort(port) {
+  settingsPorts.add(port)
+  publishState()
+  try {
+    const session = await activeTopSession(port)
+    if (session) {
+      const chainId = await session.requestControl('eth_chainId', [], true)
+      if (typeof chainId === 'string') setPortChain(port, chainId)
+    }
+  } catch {
+    // The active tab can disappear while the popup is opening.
   }
 }
 
-async function sendEvent(event, args = [], selector = {}) {
-  const tabs = await chrome.tabs.query(selector)
-
-  tabs.filter((tab) => !!tab.url).forEach((tab) => sendEventToTab(tab.id, event, args))
-}
-
-function initProvider() {
-  console.log('Initializing provider connection to Frame')
-
-  provider = ethProvider('ws://127.0.0.1:1248?identity=frame-extension')
-
-  provider.on('connect', async () => {
-    console.log('Connected to Frame')
-
-    setConnected(true)
-    fetchAvailableChains()
-
-    setIcon('icons/icon96good.png')
-    sendEvent('connect')
-  })
-
-  provider.on('disconnect', () => {
-    setConnected(false)
-
-    setIcon('icons/icon96moon.png')
-    sendEvent('close')
-  })
-
-  provider.on('chainsChanged', (chains = []) => {
-    if (chains[0] && typeof chains[0] === 'object') {
-      setChains(chains)
-    }
-  })
-
-  provider.connection.on('payload', async (payload) => {
-    if (typeof payload.id !== 'undefined') {
-      if (pending[payload.id]) {
-        const { tabId, payloadId } = pending[payload.id]
-        if (pending[payload.id].method === 'eth_subscribe' && payload.result) {
-          subs[payload.result] = {
-            tabId,
-            send: (subload) => chrome.tabs.sendMessage(tabId, subload),
-            type: subType(pending[payload.id])
-          }
-        } else if (pending[payload.id].method === 'eth_unsubscribe') {
-          const params = payload.params ? [].concat(payload.params) : []
-          params.forEach((sub) => delete subs[sub])
-        }
-        chrome.tabs.sendMessage(
-          tabId,
-          Object.assign({}, payload, { id: payloadId, type: 'eth:payload' })
-        )
-        if (
-          pending[payload.id].method === 'eth_chainId' &&
-          pending[payload.id].tabId === activeTabId
-        ) {
-          const payloadOrigin = pending[payload.id].origin
-          const activeTab = await chrome.tabs.get(activeTabId)
-          const activeTabOrigin = originFromUrl(activeTab.url)
-          if (activeTabOrigin === payloadOrigin) {
-            const chainId = payload.result
-            if (chainId) setCurrentChain(chainId)
-          }
-        }
-
-        delete pending[payload.id]
-      }
-    } else if (
-      payload.method &&
-      payload.method.indexOf('_subscription') > -1 &&
-      subs[payload.params.subscription]
-    ) {
-      // Emit subscription result to tab
-      const sub = subs[payload.params.subscription]
-      payload.type = 'eth:payload'
-      sub.send(payload)
-      if (sub.type === 'chainChanged' && sub.tabId === activeTabId) {
-        const chainId = payload.params?.result
-        if (chainId) setCurrentChain(chainId)
-      }
-    }
-  })
-}
-
-function destroyProvider() {
-  if (provider) {
-    provider.close()
-    provider = null
+async function handleSettingsMessage(port, message) {
+  if (!message || typeof message !== 'object' || Array.isArray(message)) return
+  const keys = Object.keys(message)
+  if (message.type === 'summon') {
+    if (keys.length !== 1) return
+    await control.request('frame_summon').catch(() => {})
+    return
+  }
+  if (message.type === 'refresh') {
+    if (keys.length !== 1) return
+    if (port.frameRefreshPromise) return port.frameRefreshPromise
+    port.frameRefreshPromise = (async () => {
+      const session = await activeTopSession(port)
+      if (!session) return setPortChain(port, '')
+      const chainId = await session.requestControl('eth_chainId', [], true).catch(() => '')
+      setPortChain(port, typeof chainId === 'string' ? chainId : '')
+    })().finally(() => {
+      port.frameRefreshPromise = undefined
+    })
+    return port.frameRefreshPromise
+  }
+  if (
+    message.type === 'switchChain' &&
+    keys.length === 2 &&
+    typeof message.chainId === 'string' &&
+    /^0x(?:0|[1-9a-f][0-9a-f]*)$/u.test(message.chainId)
+  ) {
+    const session = await activeTopSession(port)
+    if (!session) return
+    await session
+      .requestControl('wallet_switchEthereumChain', [{ chainId: message.chainId }])
+      .catch(() => {})
+    const chainId = await session.requestControl('eth_chainId', [], true).catch(() => '')
+    setPortChain(port, typeof chainId === 'string' ? chainId : '')
   }
 }
 
-function addStateListeners() {
-  function onPortDisconnected(port) {
-    settingsPanel = null
-    port.onDisconnect.removeListener(onPortDisconnected)
-  }
-
-  chrome.runtime.onMessage.addListener(async (extensionPayload, sender) => {
-    const { tab, ...payload } = extensionPayload
-    const { method, params } = payload
-
-    console.debug('Message received from tab', { tab, payload })
-
-    if (payload.method === 'embedded_action_res') {
-      const [action, res] = params
-      if (action.type === 'getChainId' && res.chainId) return setCurrentChain(res.chainId)
-    }
-
-    if (payload.method === 'frame_summon') {
-      return provider.connection.send({ jsonrpc: '2.0', id: 1, method, params })
-    }
-
-    const id = provider.nextId++
-    const origin = getOrigin(tab || sender)
-    if (!origin) return console.error('No origin found for sender')
-    pending[id] = {
-      tabId: sender?.tab?.id || tab.id,
-      payloadId: payload.id,
-      method,
-      params,
-      origin
-    }
-
-    const load = {
-      ...payload,
-      jsonrpc: '2.0',
-      id,
-      __frameOrigin: origin,
-      __extensionConnecting: payload.__extensionConnecting
-    }
-
-    provider.connection.send(load)
-  })
-
-  chrome.runtime.onConnect.addListener((port) => {
-    port.onDisconnect.addListener(onPortDisconnected)
-
-    if (port.name === 'frame_connect') {
-      settingsPanel = port
-      updateSettingsPanel()
-    }
-  })
-
-  chrome.idle.onStateChanged.addListener((state) => {
-    if (state === 'active') {
-      destroyProvider()
-      initProvider()
-    }
-  })
-}
-
-async function addTabListeners() {
-  // Query for all existing tabs and store their origins
-  const tabs = await chrome.tabs.query({})
-
-  // Create an object to store the last known origin for each tab
-  const tabOrigins = Object.fromEntries(tabs.map((tab) => [tab.id, originFromUrl(tab.url)]))
-
-  chrome.tabs.onRemoved.addListener((tabId) => {
-    delete tabOrigins[tabId]
-    unsubscribeTab(tabId)
-  })
-
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.url) {
-      const origin = originFromUrl(changeInfo.url)
-      const tabOrigin = tabOrigins[tabId]
-      if (tabOrigin !== origin) {
-        tabOrigins[tabId] = origin
-        unsubscribeTab(tabId)
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name === 'frame_page') {
+    const owner = derivePageOwner(port.sender)
+    if (!owner) return rejectPagePort(port)
+    for (const existing of pageSessions) {
+      if (existing.owner.tabId === owner.tabId && existing.owner.frameId === owner.frameId) {
+        existing.safePost({ type: 'fatal' })
+        existing.close()
+        setTimeout(() => existing.port.disconnect(), 100)
       }
     }
-  })
-
-  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-    activeTabId = tabId
-
-    const tab = await chrome.tabs.get(tabId)
-    const tabOrigin = getOrigin(tab.url)
-    if (tabOrigin.startsWith('http') || tabOrigin.startsWith('file')) {
-      chrome.tabs.sendMessage(tabId, { type: 'embedded:action', action: { type: 'getChainId' } })
+    const tabSessionCount = [...pageSessions].filter(
+      (session) => !session.closed && session.owner.tabId === owner.tabId
+    ).length
+    if (pageSessions.size >= MAX_PAGE_SESSIONS || tabSessionCount >= MAX_PAGE_SESSIONS_PER_TAB) {
+      return rejectPagePort(port)
     }
-  })
-}
+    const session = new PageSession({
+      port,
+      owner,
+      createSocket: createPageSocket,
+      reserveRequest: (bytes) => reservePageRequest(owner, bytes),
+      releaseRequest: (bytes) => releasePageRequest(owner, bytes),
+      onStateChange: (changedSession) => {
+        if (changedSession.closed) pageSessions.delete(changedSession)
+      }
+    })
+    pageSessions.add(session)
+    return
+  }
+
+  const ownSettingsPage =
+    port.name === 'frame_settings' &&
+    port.sender?.id === chrome.runtime.id &&
+    !port.sender.tab &&
+    typeof port.sender.url === 'string' &&
+    port.sender.url.startsWith(chrome.runtime.getURL(''))
+  if (!ownSettingsPage) return port.disconnect()
+
+  initializeSettingsPort(port)
+  port.onMessage.addListener((message) => handleSettingsMessage(port, message))
+  port.onDisconnect.addListener(() => settingsPorts.delete(port))
+})
 
 const CLIENT_STATUS_ALARM_KEY = 'check-client-status'
-
-async function setupClientStatusAlarm() {
-  const alarm = await chrome.alarms.get(CLIENT_STATUS_ALARM_KEY)
-
-  if (!alarm) {
-    await chrome.alarms.create(CLIENT_STATUS_ALARM_KEY, { delayInMinutes: 0, periodInMinutes: 0.5 })
+chrome.alarms.create(CLIENT_STATUS_ALARM_KEY, { delayInMinutes: 1, periodInMinutes: 1 })
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === CLIENT_STATUS_ALARM_KEY) {
+    control.ping()
+    if (frameState.connected) refreshAvailableChains()
   }
-
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === CLIENT_STATUS_ALARM_KEY) {
-      if (provider && provider.isConnected()) {
-        provider.request({ jsonrpc: '2.0', id: 1, method: 'web3_clientVersion' })
-      }
-    }
-  })
-}
+})
+setInterval(() => {
+  control.ping()
+  if (frameState.connected) refreshAvailableChains()
+}, 20 * 1000)
 
 setIcon('icons/icon96moon.png')
-setPopup('settings.html')
-
-addStateListeners()
-addTabListeners()
-setupClientStatusAlarm()
-initProvider()
+chrome.action.setPopup({ popup: 'settings.html' })

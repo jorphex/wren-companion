@@ -62,6 +62,16 @@ if (manifest.background?.service_worker !== 'index.js')
 if (manifest.content_scripts?.some(({ js }) => js?.some((file) => !actualFiles.has(file)))) {
   throw new Error('Manifest references a missing content script')
 }
+const [providerScript] = manifest.content_scripts || []
+const expectedMatches = ['http://*/*', 'https://*/*']
+if (
+  manifest.content_scripts?.length !== 1 ||
+  providerScript.run_at !== 'document_start' ||
+  providerScript.all_frames !== true ||
+  JSON.stringify(providerScript.matches) !== JSON.stringify(expectedMatches)
+) {
+  throw new Error('Unexpected provider injection policy')
+}
 if (
   manifest.web_accessible_resources?.some(({ resources }) =>
     resources?.some((file) => !actualFiles.has(file))
@@ -70,5 +80,23 @@ if (
   throw new Error('Manifest references a missing web-accessible resource')
 }
 if (actualFiles.has('augment.js')) throw new Error('Obsolete augment content must not be packaged')
+if (JSON.stringify(manifest).includes('file://'))
+  throw new Error('Opaque file origins must not be injected')
+if (
+  manifest.permissions?.includes('<all_urls>') ||
+  manifest.host_permissions?.includes('<all_urls>')
+) {
+  throw new Error('Extension must not request unrestricted host access')
+}
+if (!manifest.content_security_policy?.extension_pages?.includes('ws://127.0.0.1:1248')) {
+  throw new Error('Extension CSP must restrict Frame transport to loopback')
+}
+
+for (const file of ['index.js', 'inject.js']) {
+  const bundle = await readFile(new URL(file, root), 'utf8')
+  for (const obsolete of ['embedded_action_res', 'embedded:action', 'tabs.sendMessage']) {
+    if (bundle.includes(obsolete)) throw new Error(`${file} retains obsolete bridge: ${obsolete}`)
+  }
+}
 
 console.log(`Verified ${files.length} extension artifact files`)

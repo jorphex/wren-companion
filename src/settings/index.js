@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import styled from 'styled-components'
 
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
+import { toRpcChainId } from './protocol'
 
 const APPEAR_AS_MM = '__frameAppearAsMM__'
 
@@ -308,9 +309,9 @@ function parseOrigin(url = '') {
 
 const chainConnected = ({ connected }) => connected === undefined || connected
 
-const isInjectedUrl = (url = '') => url.startsWith('http') || url.startsWith('file')
+const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith('https://')
 
-const ChainButton = ({ index, chain, tab, selected }) => {
+const ChainButton = ({ index, chain, selected }) => {
   const { chainId, name } = chain
   const isSelectable = chainConnected(chain)
   return (
@@ -324,12 +325,8 @@ const ChainButton = ({ index, chain, tab, selected }) => {
       }}
       onClick={() => {
         if (isSelectable) {
-          chrome.runtime.sendMessage({
-            tab,
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId }]
-          })
-          updateCurrentChain(tab)
+          const targetChain = toRpcChainId(chainId)
+          if (targetChain) frameConnect.postMessage({ type: 'switchChain', chainId: targetChain })
         }
       }}
     >
@@ -392,7 +389,7 @@ class _Settings extends React.Component {
         <ClusterRow>
           <ClusterValue
             onClick={() => {
-              if (isConnected) chrome.runtime.sendMessage({ method: 'frame_summon', params: [] })
+              if (isConnected) frameConnect.postMessage({ type: 'summon' })
             }}
             style={{
               flexGrow: 1,
@@ -500,7 +497,6 @@ class _Settings extends React.Component {
             key={chain.chainId}
             index={i}
             chain={chain}
-            tab={this.props.tab}
             selected={chain.chainId === parseInt(currentChain, 16)}
           />
         ))}
@@ -512,11 +508,13 @@ class _Settings extends React.Component {
     try {
       const availableChains = this.store('availableChains')
       const currentChain = this.store('currentChain')
-      const currentChainDetails = availableChains.find(({ chainId }) => chainId === currentChain)
+      const currentChainDetails = availableChains.find(
+        ({ chainId }) => toRpcChainId(chainId) === currentChain
+      )
       if (currentChainDetails && currentChainDetails.name) {
         return currentChainDetails.name
       } else {
-        const chainInt = parseInt(currentChain)
+        const chainInt = parseInt(currentChain, 16)
         if (isNaN(chainInt)) {
           return '?'
         } else {
@@ -589,20 +587,16 @@ class _Settings extends React.Component {
 
 const Settings = Restore.connect(_Settings, store)
 
-const frameConnect = chrome.runtime.connect({ name: 'frame_connect' })
+const frameConnect = chrome.runtime.connect({ name: 'frame_settings' })
+const refreshTimer = setInterval(() => frameConnect.postMessage({ type: 'refresh' }), 5000)
+window.addEventListener('unload', () => clearInterval(refreshTimer), { once: true })
 
 frameConnect.onMessage.addListener((state) => {
+  if (state.type !== 'state') return
   store.setFrameConnected(state.connected)
   store.setChains(state.availableChains)
   store.setCurrentChain(state.currentChain)
 })
-
-const updateCurrentChain = (tab) => {
-  chrome.tabs.sendMessage(tab.id, {
-    type: 'embedded:action',
-    action: { type: 'getChainId' }
-  })
-}
 
 async function getInitialSettings(tabId) {
   return getLocalSetting(tabId, APPEAR_AS_MM)
@@ -615,12 +609,6 @@ document.addEventListener('DOMContentLoaded', async function () {
   const isInjectedTab = isInjectedUrl(activeTab?.url)
 
   const mmAppear = isInjectedTab ? await getInitialSettings(activeTab.id) : false
-
-  if (isInjectedTab) {
-    setInterval(() => {
-      updateCurrentChain(activeTab)
-    }, 1000)
-  }
 
   console.debug('Initial settings', { activeTab, isInjectedTab, mmAppear })
 

@@ -30,7 +30,19 @@ export default [
     }
   },
   {
-    files: ['webpack*.js', 'scripts/**/*.{js,mjs}', 'src/inline.js'],
+    files: [
+      'webpack*.js',
+      'scripts/**/*.{js,mjs}',
+      'src/copy-static.js',
+      'src/control-client.js',
+      'src/page-session.js',
+      'src/page-connection.js',
+      'src/protocol.js',
+      'src/provider-info.js',
+      'src/provider.js',
+      'src/settings/protocol.js',
+      'test/**/*.js'
+    ],
     languageOptions: {
       globals: {
         ...globals.node
@@ -52,9 +64,16 @@ export default [
     }
   },
   {
-    files: ['src/index.js'],
+    files: [
+      'src/frame.js',
+      'src/index.js',
+      'src/inject.js',
+      'src/page-connection.js',
+      'src/settings/protocol.js'
+    ],
     languageOptions: {
       globals: {
+        module: 'readonly',
         require: 'readonly'
       },
       sourceType: 'commonjs'
