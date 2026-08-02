@@ -76,7 +76,7 @@ for (const browser of ['chrome', 'firefox']) {
   const extracted = await mkdtemp(join(tmpdir(), `frame-companion-${browser}-`))
   try {
     execFileSync('unzip', ['-q', archive, '-d', extracted])
-    execFileSync(process.execPath, [join(root, 'scripts/verify-dist.mjs'), extracted])
+    execFileSync(process.execPath, [join(root, 'scripts/verify-dist.mjs'), extracted, browser])
   } finally {
     await rm(extracted, { recursive: true, force: true })
   }

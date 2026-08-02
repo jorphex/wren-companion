@@ -3,6 +3,8 @@ import { join, relative, resolve } from 'node:path'
 import { extensionArtifactFiles } from './artifact-policy.mjs'
 
 const root = resolve(process.argv[2] || new URL('../dist/', import.meta.url).pathname)
+const browser = process.argv[3] || 'chrome'
+if (!['chrome', 'firefox'].includes(browser)) throw new Error(`Unsupported browser: ${browser}`)
 const expectedFiles = new Set(extensionArtifactFiles)
 
 const files = []
@@ -37,10 +39,12 @@ const packageFile = JSON.parse(await readFile(new URL('../package.json', import.
 if (manifest.manifest_version !== 3) throw new Error('Extension artifact must use Manifest V3')
 if (manifest.version !== packageFile.version)
   throw new Error('Manifest and package versions differ')
-if (manifest.background?.service_worker !== 'index.js')
-  throw new Error('Unexpected background worker')
-if (manifest.background?.scripts)
-  throw new Error('Chrome manifest includes Firefox background scripts')
+const validBackground =
+  browser === 'chrome'
+    ? manifest.background?.service_worker === 'index.js' && !manifest.background?.scripts
+    : !manifest.background?.service_worker &&
+      JSON.stringify(manifest.background?.scripts) === JSON.stringify(['index.js'])
+if (!validBackground) throw new Error(`Unexpected ${browser} background declaration`)
 if (manifest.content_scripts?.some(({ js }) => js?.some((file) => !actualFiles.has(file)))) {
   throw new Error('Manifest references a missing content script')
 }
