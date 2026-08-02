@@ -1,6 +1,6 @@
 {
   "name": "Frame Companion",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "manifest_version": 3,
   "minimum_chrome_version": "116",
   "description": "Frame companion creates an injected connection to Frame desktop wallet (required) on macOS, Windows or Linux.",
