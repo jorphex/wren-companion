@@ -40,7 +40,6 @@ export default [
       'src/protocol.js',
       'src/provider-info.js',
       'src/provider.js',
-      'src/settings/protocol.js',
       'test/**/*.js'
     ],
     languageOptions: {
@@ -65,11 +64,13 @@ export default [
   },
   {
     files: [
+      'src/auth-protocol.js',
+      'src/authenticated-socket.js',
+      'src/credential-store.js',
       'src/frame.js',
       'src/index.js',
       'src/inject.js',
-      'src/page-connection.js',
-      'src/settings/protocol.js'
+      'src/page-connection.js'
     ],
     languageOptions: {
       globals: {

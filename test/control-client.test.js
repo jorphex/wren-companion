@@ -125,6 +125,35 @@ test('rejects and reconnects when a browser socket send fails', async () => {
   assert.equal(timers.size, 1)
 })
 
+test('restarts immediately with a fresh socket and rejects pending work', async () => {
+  const { client, closed, sockets } = setup()
+  client.connect()
+  sockets[0].open()
+  const pending = client.request('web3_clientVersion')
+
+  client.restart()
+
+  await assert.rejects(pending, (error) => error.code === 4900)
+  assert.deepEqual(sockets[0].closeArgs, [1000, 'Control connection reset'])
+  assert.equal(closed.length, 1)
+  assert.equal(sockets.length, 2)
+})
+
+test('pauses without reconnecting until explicitly restarted', () => {
+  const { client, sockets } = setup()
+  client.connect()
+  sockets[0].open()
+
+  client.pause()
+
+  assert.deepEqual(sockets[0].closeArgs, [1000, 'Control connection reset'])
+  assert.equal(sockets.length, 1)
+  client.ping()
+  assert.equal(sockets.length, 1)
+  client.restart()
+  assert.equal(sockets.length, 2)
+})
+
 test('keeps sending bounded liveness requests and closes a stalled peer', () => {
   const { client, sockets, timers } = setup()
   client.connect()

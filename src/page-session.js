@@ -69,6 +69,7 @@ class PageSession {
     owner,
     createSocket,
     onStateChange = () => {},
+    socketReady = () => true,
     reserveRequest = () => true,
     releaseRequest = () => {},
     randomId = () => crypto.randomUUID(),
@@ -80,6 +81,7 @@ class PageSession {
     this.owner = owner
     this.createSocket = createSocket
     this.onStateChange = onStateChange
+    this.socketReady = socketReady
     this.reserveRequest = reserveRequest
     this.releaseRequest = releaseRequest
     this.randomId = randomId
@@ -231,6 +233,7 @@ class PageSession {
   ensureSocket() {
     if (this.closed || this.socket) return
     this.clearReconnectTimer()
+    if (!this.socketReady()) return
 
     let socket
     try {
@@ -318,6 +321,23 @@ class PageSession {
     this.setConnected(false)
     this.rejectPending(4900, 'Frame disconnected')
     if (!this.closed && this.everUsed) this.scheduleReconnect()
+  }
+
+  resumeTransport() {
+    if (this.closed || !this.everUsed) return
+    this.reconnectAttempt = 0
+    this.clearReconnectTimer()
+    this.ensureSocket()
+  }
+
+  resetTransport() {
+    if (this.closed) return
+    this.clearReconnectTimer()
+    const socket = this.socket
+    this.socket = undefined
+    this.setConnected(false)
+    this.rejectPending(4900, 'Frame disconnected')
+    if (socket) this.closeSocket(socket, 1000, 'Companion authentication reset')
   }
 
   scheduleReconnect() {

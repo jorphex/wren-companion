@@ -4,12 +4,13 @@ import { createRoot } from 'react-dom/client'
 import styled from 'styled-components'
 
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
-import { toRpcChainId } from './protocol'
+import { parseAuthenticationState, toRpcChainId } from './protocol.mjs'
 
 const APPEAR_AS_MM = '__frameAppearAsMM__'
 
 const initialState = {
   frameConnected: false,
+  authentication: { status: 'disconnected' },
   appearAsMM: false
 }
 
@@ -22,6 +23,9 @@ const actions = {
   },
   setFrameConnected: (u, connected) => {
     u('frameConnected', () => connected)
+  },
+  setAuthentication: (u, authentication) => {
+    u('authentication', () => authentication)
   }
 }
 
@@ -195,6 +199,49 @@ const NotConnected = styled.div`
   font-size: 18px;
 `
 
+const PairingPanel = styled.div`
+  padding: 24px 28px;
+  text-align: center;
+`
+
+const PairingTitle = styled.div`
+  color: var(--moon);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+`
+
+const PairingCode = styled.div`
+  color: var(--good);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  margin: 12px 0 8px 8px;
+`
+
+const PairingDetail = styled.div`
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+`
+
+const PairingButton = styled.button`
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: ${(props) => (props.confirm ? 'var(--bad)' : 'var(--moon)')};
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  min-height: 48px;
+  padding: 0 18px;
+  text-transform: uppercase;
+  width: 100%;
+`
+
 const CannotConnectSub = styled.div`
   padding: 0px 32px 0px 32px;
   display: flex;
@@ -339,6 +386,109 @@ const ChainButton = ({ index, chain, selected }) => {
 // const isFirefox = Boolean(window?.browser && browser?.runtime)
 
 class _Settings extends React.Component {
+  state = { confirmCredentialRotation: false }
+
+  authenticationPanel() {
+    const authentication = this.store('authentication') || { status: 'disconnected' }
+
+    if (authentication.status === 'pairing') {
+      return (
+        <ClusterBoxMain style={{ marginTop: '12px' }}>
+          <Cluster>
+            <ClusterRow>
+              <ClusterValue>
+                <PairingPanel>
+                  <PairingTitle>Confirm Companion Pairing</PairingTitle>
+                  <PairingCode>{authentication.pairingCode}</PairingCode>
+                  <PairingDetail>
+                    Approve only if this code matches the Frame desktop prompt.
+                  </PairingDetail>
+                </PairingPanel>
+              </ClusterValue>
+            </ClusterRow>
+          </Cluster>
+        </ClusterBoxMain>
+      )
+    }
+
+    if (authentication.status === 'error') {
+      return (
+        <ClusterBoxMain style={{ marginTop: '12px' }}>
+          <Cluster>
+            <ClusterRow>
+              <ClusterValue>
+                <PairingPanel>
+                  <PairingTitle>Companion Authentication Failed</PairingTitle>
+                  <PairingDetail>{authentication.message}</PairingDetail>
+                </PairingPanel>
+              </ClusterValue>
+            </ClusterRow>
+          </Cluster>
+        </ClusterBoxMain>
+      )
+    }
+
+    if (authentication.status === 'preparing' || authentication.status === 'authenticating') {
+      return (
+        <ClusterBoxMain style={{ marginTop: '12px' }}>
+          <Cluster>
+            <ClusterRow>
+              <ClusterValue>
+                <PairingPanel>
+                  <PairingTitle>Authenticating Companion</PairingTitle>
+                  <PairingDetail>
+                    Proving this Companion installation to Frame desktop.
+                  </PairingDetail>
+                </PairingPanel>
+              </ClusterValue>
+            </ClusterRow>
+          </Cluster>
+        </ClusterBoxMain>
+      )
+    }
+
+    if (authentication.status === 'rotating') {
+      return (
+        <ClusterBoxMain style={{ marginTop: '12px' }}>
+          <Cluster>
+            <ClusterRow>
+              <ClusterValue>
+                <PairingPanel>
+                  <PairingTitle>Resetting Pairing</PairingTitle>
+                  <PairingDetail>A new installation key is being created.</PairingDetail>
+                </PairingPanel>
+              </ClusterValue>
+            </ClusterRow>
+          </Cluster>
+        </ClusterBoxMain>
+      )
+    }
+
+    if (authentication.status !== 'authenticated') return null
+
+    const confirm = this.state.confirmCredentialRotation
+    return (
+      <ClusterBoxMain style={{ marginTop: '12px' }}>
+        <Cluster>
+          <ClusterRow>
+            <ClusterValue>
+              <PairingButton
+                confirm={confirm}
+                onClick={() => {
+                  if (!confirm) return this.setState({ confirmCredentialRotation: true })
+                  this.setState({ confirmCredentialRotation: false })
+                  frameConnect.postMessage({ type: 'rotateCredential' })
+                }}
+              >
+                {confirm ? 'Confirm Reset And Re-Pair' : 'Reset Companion Pairing'}
+              </PairingButton>
+            </ClusterValue>
+          </ClusterRow>
+        </Cluster>
+      </ClusterBoxMain>
+    )
+  }
+
   notConnected() {
     return (
       <Cluster>
@@ -578,6 +728,7 @@ class _Settings extends React.Component {
         <Overlay />
         <SettingsScroll scrollBar={getScrollBarWidth()}>
           <ClusterBoxMain>{this.frameConnected()}</ClusterBoxMain>
+          {this.authenticationPanel()}
           {this.renderMainPanel()}
         </SettingsScroll>
       </>
@@ -594,6 +745,7 @@ window.addEventListener('unload', () => clearInterval(refreshTimer), { once: tru
 frameConnect.onMessage.addListener((state) => {
   if (state.type !== 'state') return
   store.setFrameConnected(state.connected)
+  store.setAuthentication(parseAuthenticationState(state.authentication))
   store.setChains(state.availableChains)
   store.setCurrentChain(state.currentChain)
 })

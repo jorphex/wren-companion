@@ -1,7 +1,11 @@
 const { ControlClient } = require('./control-client')
+const { deriveExtensionIdentity } = require('./auth-protocol')
+const { AuthenticatedSocket } = require('./authenticated-socket')
+const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
 const { PageSession, derivePageOwner } = require('./page-session')
 
-const FRAME_URL = 'ws://127.0.0.1:1248?identity=frame-extension'
+const frameUrl = (role) =>
+  `ws://127.0.0.1:1248?identity=frame-extension&role=${encodeURIComponent(role)}`
 const MAX_PAGE_SOCKETS = 32
 const MAX_PAGE_SESSIONS = 256
 const MAX_PAGE_SESSIONS_PER_TAB = 8
@@ -15,10 +19,18 @@ const tabCapacity = new Map()
 let openPageSockets = 0
 let globalPendingRequests = 0
 let globalPendingBytes = 0
+let authenticationReady = false
+let authRecoveryPending = false
+let credentialRotation
+
+const extensionIdentity = deriveExtensionIdentity(chrome.runtime.getURL(''))
+if (!extensionIdentity) throw new Error('Unsupported Frame Companion extension identity')
+const credentialStore = new CredentialStore({ storage: new IndexedDbCredentialStorage() })
 
 const frameState = {
   connected: false,
-  availableChains: []
+  availableChains: [],
+  authentication: { status: 'disconnected' }
 }
 let chainsRefreshPromise
 
@@ -51,9 +63,19 @@ function setFrameState(update) {
   publishState()
 }
 
+function createAuthenticatedSocket(role, onStatus = () => {}) {
+  return new AuthenticatedSocket({
+    socket: new WebSocket(frameUrl(role)),
+    credentialStore,
+    identity: extensionIdentity,
+    onStatus
+  })
+}
+
 function createPageSocket() {
+  if (!authenticationReady) throw new Error('Companion authentication is not ready')
   if (openPageSockets >= MAX_PAGE_SOCKETS) throw new Error('Page socket capacity exceeded')
-  const socket = new WebSocket(FRAME_URL)
+  const socket = createAuthenticatedSocket('page', handlePageAuthenticationStatus)
   openPageSockets += 1
   socket.addEventListener(
     'close',
@@ -63,6 +85,36 @@ function createPageSocket() {
     { once: true }
   )
   return socket
+}
+
+function resetPageTransports() {
+  for (const session of pageSessions) session.resetTransport()
+}
+
+function setAuthenticationReady(ready) {
+  authenticationReady = ready
+  if (ready) {
+    for (const session of pageSessions) session.resumeTransport()
+  } else {
+    resetPageTransports()
+  }
+}
+
+function handleControlAuthenticationStatus(authentication) {
+  if (authentication.status === 'disconnected' && frameState.authentication.status === 'error')
+    return
+  setFrameState({ authentication })
+}
+
+function handlePageAuthenticationStatus(authentication) {
+  if (authentication.status !== 'error' || !authenticationReady || authRecoveryPending) return
+  authRecoveryPending = true
+  setAuthenticationReady(false)
+  setFrameState({ connected: false, availableChains: [], authentication })
+  queueMicrotask(() => {
+    authRecoveryPending = false
+    control.restart()
+  })
 }
 
 function reservePageRequest(owner, bytes) {
@@ -126,12 +178,14 @@ async function activeTopSession(port) {
 }
 
 const control = new ControlClient({
-  createSocket: () => new WebSocket(FRAME_URL),
+  createSocket: () => createAuthenticatedSocket('control', handleControlAuthenticationStatus),
   onOpen: (client) => {
+    setAuthenticationReady(true)
     setFrameState({ connected: true })
     refreshAvailableChains(client)
   },
   onClose: () => {
+    setAuthenticationReady(false)
     for (const port of settingsPorts) port.frameChainId = ''
     setFrameState({ connected: false, availableChains: [] })
   }
@@ -187,6 +241,34 @@ async function handleSettingsMessage(port, message) {
     })
     return port.frameRefreshPromise
   }
+  if (message.type === 'rotateCredential') {
+    if (keys.length !== 1 || credentialRotation) return
+    credentialRotation = (async () => {
+      setAuthenticationReady(false)
+      control.pause()
+      setFrameState({
+        connected: false,
+        availableChains: [],
+        authentication: { status: 'rotating' }
+      })
+      try {
+        await credentialStore.rotate()
+        control.restart()
+      } catch (error) {
+        control.restart()
+        setFrameState({
+          authentication: {
+            status: 'error',
+            code: 'credential-error',
+            message: error instanceof Error ? error.message : 'Unable to rotate pairing key'
+          }
+        })
+      }
+    })().finally(() => {
+      credentialRotation = undefined
+    })
+    return credentialRotation
+  }
   if (
     message.type === 'switchChain' &&
     keys.length === 2 &&
@@ -224,6 +306,7 @@ chrome.runtime.onConnect.addListener((port) => {
       port,
       owner,
       createSocket: createPageSocket,
+      socketReady: () => authenticationReady,
       reserveRequest: (bytes) => reservePageRequest(owner, bytes),
       releaseRequest: (bytes) => releasePageRequest(owner, bytes),
       onStateChange: (changedSession) => {

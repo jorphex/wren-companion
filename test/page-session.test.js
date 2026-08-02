@@ -162,6 +162,44 @@ test('opens lazily when a dapp waits for the provider connect event', () => {
   assert.deepEqual(sockets[0].sent, [])
 })
 
+test('waits for companion authentication before opening and resumes explicitly', () => {
+  const port = new FakePort()
+  const sockets = []
+  let ready = false
+  const session = new PageSession({
+    port,
+    owner: { tabId: 1, frameId: 0, origin: 'https://example.test' },
+    socketReady: () => ready,
+    createSocket: () => {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      return socket
+    }
+  })
+
+  port.onMessage.emit(request())
+  assert.equal(sockets.length, 0)
+  assert.equal(session.queue.length, 1)
+
+  ready = true
+  session.resumeTransport()
+  assert.equal(sockets.length, 1)
+  sockets[0].open()
+  assert.equal(sockets[0].sent.length, 1)
+})
+
+test('resets authenticated transport and rejects owned pending work', () => {
+  const { port, session, sockets } = setup()
+  port.onMessage.emit(request(12))
+  sockets[0].open()
+
+  session.resetTransport()
+
+  assert.deepEqual(sockets[0].closeArgs, [1000, 'Companion authentication reset'])
+  assert.equal(session.socket, undefined)
+  assert.equal(port.messages.at(-1).payload.error.code, 4900)
+})
+
 test('marks only chain identity requests as extension connection traffic', () => {
   const { port, sockets } = setup()
   port.onMessage.emit({

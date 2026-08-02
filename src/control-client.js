@@ -28,7 +28,7 @@ class ControlClient {
   }
 
   connect() {
-    if (this.disposed || this.socket) return
+    if (this.disposed || this.paused || this.socket) return
     let socket
     try {
       socket = this.createSocket()
@@ -78,7 +78,7 @@ class ControlClient {
   }
 
   scheduleReconnect() {
-    if (this.disposed || this.reconnectTimer) return
+    if (this.disposed || this.paused || this.reconnectTimer) return
     const index = Math.min(this.reconnectAttempt++, this.reconnectDelays.length - 1)
     this.reconnectTimer = this.setTimer(() => {
       this.reconnectTimer = undefined
@@ -130,6 +130,7 @@ class ControlClient {
   }
 
   ping() {
+    if (this.paused) return
     if (!this.socket) this.connect()
     else if (this.socket.readyState === WEB_SOCKET_OPEN)
       this.request('web3_clientVersion', [], 25 * 1000, true).catch(() => {})
@@ -141,6 +142,32 @@ class ControlClient {
       pending.reject(Object.assign(new Error(message), { code }))
     }
     this.pending.clear()
+  }
+
+  restart() {
+    if (this.disposed) return
+    this.pause()
+    this.paused = false
+    this.reconnectAttempt = 0
+    this.connect()
+  }
+
+  pause() {
+    if (this.disposed) return
+    this.paused = true
+    if (this.reconnectTimer) this.clearTimer(this.reconnectTimer)
+    this.reconnectTimer = undefined
+    this.rejectPending(4900, 'Frame control connection reset')
+    const socket = this.socket
+    this.socket = undefined
+    if (socket) {
+      this.onClose()
+      try {
+        socket.close(1000, 'Control connection reset')
+      } catch {
+        // The browser can reject closing a socket that failed during construction.
+      }
+    }
   }
 
   dispose() {
