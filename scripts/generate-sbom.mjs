@@ -21,6 +21,9 @@ const runNpm = (args) =>
 const sbom = JSON.parse(runNpm(['sbom', '--sbom-format', 'cyclonedx']))
 const productionTree = JSON.parse(runNpm(['ls', '--omit=dev', '--all', '--json']))
 const rootReference = sbom.metadata?.component?.['bom-ref']
+if (typeof rootReference !== 'string') throw new Error('npm SBOM is missing its root component')
+sbom.metadata.component.name = packageJson.name
+sbom.metadata.component.version = packageJson.version
 const productionReferences = new Set()
 const productionGraph = new Map([[rootReference, new Set()]])
 

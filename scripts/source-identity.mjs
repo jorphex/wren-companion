@@ -5,7 +5,8 @@ export function readSourceIdentity() {
     encoding: 'utf8'
   })
   if (status) {
-    throw new Error('Release artifacts require a clean source worktree')
+    const entries = status.trim().split('\n').slice(0, 32)
+    throw new Error(`Release artifacts require a clean source worktree: ${JSON.stringify(entries)}`)
   }
 
   return {

@@ -30,6 +30,12 @@ jobs:
       - run: npm install --global npm@11.12.0
       - run: npm run setup:ci
       - run: npm audit --audit-level=high
+      - name: Verify release package prerequisites
+        run: |
+          command -v zip
+          command -v unzip
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - run: npm run package:browsers
       - run: npm run package:verify
       - name: Upload qualified companion artifacts

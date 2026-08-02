@@ -46,6 +46,12 @@ jobs:
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
       - run: npm run setup:ci
       - run: npm audit --audit-level=high
+      - name: Verify release package prerequisites
+        run: |
+          command -v zip
+          command -v unzip
+          git diff --exit-code
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - run: npm run package:browsers
       - run: npm run package:verify
       - name: Verify compatible desktop baseline
