@@ -49,7 +49,7 @@ export default [
     }
   },
   {
-    files: ['src/**/*.js'],
+    files: ['src/**/*.js', 'qualification/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.browser,

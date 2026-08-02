@@ -19,6 +19,7 @@
     "lint:webext": "node scripts/lint-firefox.mjs",
     "package:browsers": "npm run verify && node scripts/package-browsers.mjs && npm run sbom:artifact && node scripts/write-checksums.mjs",
     "package:verify": "npm run sbom:verify && node scripts/verify-packages.mjs",
+    "qualify:serve": "node scripts/serve-qualification.mjs",
     "sbom:artifact": "node scripts/generate-sbom.mjs",
     "sbom:verify": "node scripts/verify-sbom.mjs",
     "build": "rimraf ./dist && webpack --config webpack.config.js && node ./src/copy-static.js",

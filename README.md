@@ -53,6 +53,12 @@ settings can reset it. Pairing authenticates the extension to Frame; it does not
 authenticate the localhost Frame endpoint to the extension. See the
 [security policy](SECURITY.md) for the complete boundary.
 
+Release candidates can be exercised with the local, dependency-free
+qualification page by running `npm run qualify:serve`. It binds only to
+`127.0.0.1`; follow the paired desktop [qualification
+procedure](https://github.com/jorphex/frame/blob/modernization-preview/QUALIFICATION.md)
+and use disposable test accounts only.
+
 ### Related
 
 - [Frame](https://github.com/jorphex/frame) - A cross-platform Ethereum provider interface

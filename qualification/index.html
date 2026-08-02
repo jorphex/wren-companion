@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frame qualification console</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">LOCAL RELEASE CHECK</p>
+        <h1>Frame qualification console</h1>
+        <p class="lede">
+          This page talks only to the injected Frame provider. It makes no network requests of its
+          own and stores nothing.
+        </p>
+      </header>
+
+      <aside>
+        <strong>Use disposable test accounts only.</strong> Never enter a seed phrase, private key,
+        PIN, passphrase, or pairing response into this page. Review every request in Frame and on
+        the hardware display.
+      </aside>
+
+      <section class="status-grid" aria-label="Provider status">
+        <div><span>Discovery</span><strong id="discovery">waiting</strong></div>
+        <div><span>Transport</span><strong id="transport">unknown</strong></div>
+        <div><span>Account</span><strong id="account">not connected</strong></div>
+        <div><span>Chain</span><strong id="chain">unknown</strong></div>
+        <div><span>Legacy injection</span><strong id="legacy">checking</strong></div>
+      </section>
+
+      <section>
+        <h2>1. Provider and session</h2>
+        <div class="actions">
+          <button data-action="discover">Request EIP-6963 provider</button>
+          <button data-action="connect">Connect account</button>
+          <button data-action="refresh">Refresh account and chain</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>2. Signing</h2>
+        <p>Each button creates one visible approval request. Reject once, then approve once.</p>
+        <div class="actions">
+          <button data-action="personal" disabled>Sign fixed personal message</button>
+          <button data-action="typed" disabled>Sign fixed EIP-712 message</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. Sepolia transaction</h2>
+        <p>
+          The transaction is a zero-value self-transfer. The button remains disabled unless Frame
+          reports Sepolia (<code>0xaa36a7</code>).
+        </p>
+        <label class="confirm">
+          <input id="transaction-confirmation" type="checkbox" />
+          I verified the selected account is disposable and the active chain is Sepolia.
+        </label>
+        <div class="actions">
+          <button data-action="transaction" disabled>Send zero-value self-transfer</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="log-heading">
+          <h2>Observed results</h2>
+          <button class="quiet" data-action="clear">Clear</button>
+        </div>
+        <output id="log" aria-live="polite"></output>
+      </section>
+    </main>
+  </body>
+</html>
