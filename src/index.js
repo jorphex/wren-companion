@@ -52,42 +52,42 @@ const unsubscribeTab = (tabId) => {
   })
 }
 
-function updateSettingsPanel() {
+function updateSettingsPanel () {
   if (settingsPanel) {
     settingsPanel.postMessage(frameState)
   }
 }
 
-function setConnected(connected) {
+function setConnected (connected) {
   console.debug(`Setting connected to ${connected}`)
 
   frameState.connected = connected
   updateSettingsPanel()
 }
 
-function setChains(chains) {
+function setChains (chains) {
   console.debug('Setting available chains', { chains })
 
   frameState.availableChains = chains
   updateSettingsPanel()
 }
 
-function setCurrentChain(chain) {
+function setCurrentChain (chain) {
   console.debug(`Setting current chain to ${chain}`)
 
   frameState.currentChain = chain
   updateSettingsPanel()
 }
 
-function setIcon(path) {
+function setIcon (path) {
   chrome.action.setIcon({ path })
 }
 
-function setPopup(popup) {
+function setPopup (popup) {
   chrome.action.setPopup({ popup })
 }
 
-async function fetchAvailableChains() {
+async function fetchAvailableChains () {
   try {
     const chains = await provider.request({ method: 'wallet_getEthereumChains' })
     setChains(chains)
@@ -97,7 +97,7 @@ async function fetchAvailableChains() {
   }
 }
 
-async function sendEventToTab(tabId, event, args) {
+async function sendEventToTab (tabId, event, args) {
   try {
     return await chrome.tabs.sendMessage(tabId, { type: 'eth:event', event, args })
   } catch (e) {
@@ -105,13 +105,13 @@ async function sendEventToTab(tabId, event, args) {
   }
 }
 
-async function sendEvent(event, args = [], selector = {}) {
+async function sendEvent (event, args = [], selector = {}) {
   const tabs = await chrome.tabs.query(selector)
 
   tabs.filter((tab) => !!tab.url).forEach((tab) => sendEventToTab(tab.id, event, args))
 }
 
-function initProvider() {
+function initProvider () {
   console.log('Initializing provider connection to Frame')
 
   provider = ethProvider('ws://127.0.0.1:1248?identity=frame-extension')
@@ -183,21 +183,17 @@ function initProvider() {
   })
 }
 
-function destroyProvider() {
+function destroyProvider () {
   if (provider) {
     provider.close()
     provider = null
   }
 }
 
-function addStateListeners() {
-  function onPortDisconnected(port) {
+function addStateListeners () {
+  function onPortDisconnected (port) {
     settingsPanel = null
     port.onDisconnect.removeListener(onPortDisconnected)
-  }
-
-  function setMediaBlob(blobUrl, location, message) {
-    window.__setMediaBlob__(blobUrl, location, message)
   }
 
   chrome.runtime.onMessage.addListener(async (extensionPayload, sender) => {
@@ -209,30 +205,9 @@ function addStateListeners() {
     if (payload.method === 'embedded_action_res') {
       const [action, res] = params
       if (action.type === 'getChainId' && res.chainId) return setCurrentChain(res.chainId)
-    } else if (payload.method === 'media_blob') {
-      const location = payload.location
-
-      try {
-        const res = await fetch(payload.src)
-        const blob = await res.blob()
-        const blobURL = URL.createObjectURL(blob)
-
-        chrome.scripting.executeScript({
-          target: { tabId: sender.tab.id },
-          func: setMediaBlob,
-          args: [blobURL, location]
-        })
-      } catch (e) {
-        chrome.scripting.executeScript({
-          target: { tabId: sender.tab.id },
-          func: setMediaBlob,
-          args: ['', location, e.message]
-        })
-      }
     }
 
-    if (payload.method === 'frame_summon')
-      return provider.connection.send({ jsonrpc: '2.0', id: 1, method, params })
+    if (payload.method === 'frame_summon') { return provider.connection.send({ jsonrpc: '2.0', id: 1, method, params }) }
 
     const id = provider.nextId++
     const origin = getOrigin(tab || sender)
@@ -273,7 +248,7 @@ function addStateListeners() {
   })
 }
 
-async function addTabListeners() {
+async function addTabListeners () {
   // Query for all existing tabs and store their origins
   const tabs = await chrome.tabs.query({})
 
@@ -309,7 +284,7 @@ async function addTabListeners() {
 
 const CLIENT_STATUS_ALARM_KEY = 'check-client-status'
 
-async function setupClientStatusAlarm() {
+async function setupClientStatusAlarm () {
   const alarm = await chrome.alarms.get(CLIENT_STATUS_ALARM_KEY)
 
   if (!alarm) {

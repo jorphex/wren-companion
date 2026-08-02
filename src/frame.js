@@ -1,7 +1,9 @@
+/* globals CustomEvent */
+
 import EventEmitter from 'events'
 import EthereumProvider from 'ethereum-provider'
 
-function setProvider() {
+function setProvider () {
   const existingProvider = Object.getOwnPropertyDescriptor(window, 'ethereum')
 
   if (existingProvider?.configurable) {
@@ -16,7 +18,7 @@ function setProvider() {
   }
 }
 
-function shimWeb3(provider, appearAsMetaMask) {
+function shimWeb3 (provider, appearAsMetaMask) {
   let loggedCurrentProvider = false
 
   if (!window.web3) {
@@ -65,7 +67,7 @@ class ExtensionProvider extends EthereumProvider {
   // override the send method in order to add a flag that identifies messages
   // as "connection messages", meaning Frame won't track an origin that sends
   // these requests
-  doSend(method, params, targetChain, waitForConnection) {
+  doSend (method, params, targetChain, waitForConnection) {
     if (!waitForConnection && (method === 'eth_chainId' || method === 'net_version')) {
       const payload = { jsonrpc: '2.0', id: this.nextId++, method, params, __extensionConnecting: true }
       return new Promise((resolve, reject) => {
@@ -79,7 +81,7 @@ class ExtensionProvider extends EthereumProvider {
 }
 
 class Connection extends EventEmitter {
-  constructor() {
+  constructor () {
     super()
 
     this.handleMessage = this.handleMessage.bind(this)
@@ -89,7 +91,7 @@ class Connection extends EventEmitter {
     setTimeout(() => this.emit('connect'), 0)
   }
 
-  handleMessage(event) {
+  handleMessage (event) {
     if (event && event.source === window && event.data) {
       const { type } = event.data
 
@@ -103,11 +105,11 @@ class Connection extends EventEmitter {
     }
   }
 
-  send(payload) {
+  send (payload) {
     window.postMessage({ type: 'eth:send', payload }, window.location.origin)
   }
 
-  close() {
+  close () {
     window.removeEventListener('message', this.handleMessage)
   }
 }
@@ -154,7 +156,7 @@ const info = {
   rdns: 'sh.frame'
 }
 
-function broadcastEvent(eventName, detail) {
+function broadcastEvent (eventName, detail) {
   try {
     const event = new CustomEvent(eventName, { detail })
     window.dispatchEvent(event)

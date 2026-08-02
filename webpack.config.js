@@ -1,7 +1,5 @@
 const path = require('path')
-const webpack = require('webpack')
 const TerserPlugin = require('terser-webpack-plugin')
-const NodePolyfillPlugin = require("node-polyfill-webpack-plugin")
 
 module.exports = [
   {
@@ -21,41 +19,7 @@ module.exports = [
     },
     performance: {
       hints: false
-    },
-  },
-  {
-    mode: 'production',
-    entry: './src/augment/index.js',
-    module: {
-      rules: [
-        {
-          test: /\.(js|jsx)$/,
-          exclude: /node_modules/,
-          use: ['babel-loader'],
-        },
-      ],
-    },
-    resolve: {
-      extensions: ['*', '.js', '.jsx']
-    },
-    optimization: {
-      minimizer: [
-        new TerserPlugin({
-          terserOptions: { keep_classnames: true, keep_fnames: true }
-        })
-      ]
-    },
-    output: {
-      publicPath: '',
-      path: path.resolve(__dirname, 'dist'),
-      filename: 'augment.js'
-    },
-    performance: {
-      hints: false
-    },
-    plugins: [
-      new NodePolyfillPlugin()
-    ]
+    }
   },
   {
     mode: 'production',
@@ -65,9 +29,9 @@ module.exports = [
         {
           test: /\.(js|jsx)$/,
           exclude: /node_modules/,
-          use: ['babel-loader'],
-        },
-      ],
+          use: ['babel-loader']
+        }
+      ]
     },
     resolve: {
       extensions: ['*', '.js', '.jsx']
@@ -86,10 +50,7 @@ module.exports = [
     },
     performance: {
       hints: false
-    },
-    plugins: [
-      new NodePolyfillPlugin()
-    ]
+    }
   },
   {
     mode: 'production',
