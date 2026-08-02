@@ -1,6 +1,5 @@
-const fs = require('fs')
+const { cpSync, copyFileSync, mkdirSync, writeFileSync } = require('fs')
 const path = require('path')
-const ncp = require('ncp')
 
 const inject = `
   try {
@@ -31,15 +30,14 @@ const inject = `
     console.log(e)
   }
 `
-fs.writeFile(path.join(__dirname, '../dist/inject.js'), inject, (err) => {
-  if (err) throw err
-})
-const copy = (files) =>
-  files.forEach((file) =>
-    fs
-      .createReadStream(path.join(__dirname, file))
-      .pipe(fs.createWriteStream(path.join(__dirname, '../dist/', file)))
-  )
-copy(['./manifest.json', './settings.html', './icon.png', './FrameLogo.png'])
-ncp(path.join(__dirname, './icons'), path.join(__dirname, '../dist/icons'))
-ncp(path.join(__dirname, './style'), path.join(__dirname, '../dist/style'))
+const output = path.join(__dirname, '../dist')
+
+mkdirSync(output, { recursive: true })
+writeFileSync(path.join(output, 'inject.js'), inject)
+
+for (const file of ['manifest.json', 'settings.html', 'icon.png', 'FrameLogo.png']) {
+  copyFileSync(path.join(__dirname, file), path.join(output, file))
+}
+
+cpSync(path.join(__dirname, 'icons'), path.join(output, 'icons'), { recursive: true })
+cpSync(path.join(__dirname, 'style'), path.join(output, 'style'), { recursive: true })

@@ -8,6 +8,7 @@
 </h2>
 
 ### Build
+
 ```bash
 # Clone
 › git clone https://github.com/jorphex/frame-extension
@@ -32,4 +33,5 @@ For Firefox, open `about:debugging#/runtime/this-firefox`, select "Load Temporar
 Add-on", and choose `dist/manifest.json`.
 
 ### Related
-  - [Frame](https://github.com/jorphex/frame) - A cross-platform Ethereum provider interface
+
+- [Frame](https://github.com/jorphex/frame) - A cross-platform Ethereum provider interface

@@ -1,8 +1,6 @@
-/* globals chrome, localStorage */
-
 import React from 'react'
 import Restore from 'react-restore'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import styled from 'styled-components'
 
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
@@ -51,12 +49,12 @@ const getScrollBarWidth = () => {
   return w1 - w2
 }
 
-async function getActiveTab () {
+async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
   return tabs[0]
 }
 
-async function executeScript (tabId, func, args) {
+async function executeScript(tabId, func, args) {
   try {
     const result = await chrome.scripting.executeScript({
       target: { tabId },
@@ -72,7 +70,7 @@ async function executeScript (tabId, func, args) {
   }
 }
 
-async function getLocalSetting (tabId, key) {
+async function getLocalSetting(tabId, key) {
   const results = await executeScript(tabId, (key) => localStorage.getItem(key), [key])
 
   if (results && results.length > 0) {
@@ -86,7 +84,7 @@ async function getLocalSetting (tabId, key) {
   return false
 }
 
-async function setLocalSetting (tabId, setting, val) {
+async function setLocalSetting(tabId, setting, val) {
   return executeScript(
     tabId,
     (key, val) => {
@@ -97,7 +95,7 @@ async function setLocalSetting (tabId, setting, val) {
   )
 }
 
-async function toggleLocalSetting (key) {
+async function toggleLocalSetting(key) {
   const activeTab = await getActiveTab()
 
   if (activeTab) {
@@ -297,7 +295,7 @@ const Overlay = styled.div`
 
 const originDomainRegex = /^(?<protocol>.+:(?:\/\/)?)(?<origin>[^#/]*)/
 
-function parseOrigin (url = '') {
+function parseOrigin(url = '') {
   const m = url.match(originDomainRegex)
 
   if (!m) {
@@ -344,7 +342,7 @@ const ChainButton = ({ index, chain, tab, selected }) => {
 // const isFirefox = Boolean(window?.browser && browser?.runtime)
 
 class _Settings extends React.Component {
-  notConnected () {
+  notConnected() {
     return (
       <Cluster>
         <ClusterRow>
@@ -358,7 +356,7 @@ class _Settings extends React.Component {
         </ClusterRow>
         <ClusterRow>
           <ClusterValue pointerEvents>
-            <Download href='https://frame.sh' target='_newtab'>
+            <Download href="https://frame.sh" target="_newtab">
               Download Frame
             </Download>
           </ClusterValue>
@@ -367,7 +365,7 @@ class _Settings extends React.Component {
     )
   }
 
-  unsupportedTab (origin) {
+  unsupportedTab(origin) {
     return (
       <Cluster>
         <ClusterRow>
@@ -386,7 +384,7 @@ class _Settings extends React.Component {
     )
   }
 
-  frameConnected () {
+  frameConnected() {
     const isConnected = this.store('frameConnected')
 
     return (
@@ -406,18 +404,16 @@ class _Settings extends React.Component {
             <LogoWrap>
               <img src={isConnected ? '../icons/icon96good.png' : '../icons/icon96moon.png'} />
             </LogoWrap>
-            {isConnected
-              ? (
-                <FrameConnected style={{ color: 'var(--good)' }}>Frame Connected</FrameConnected>
-                )
-              : (
-                <FrameConnected style={{ color: 'var(--moon)' }}>Frame Disconnected</FrameConnected>
-                )}
+            {isConnected ? (
+              <FrameConnected style={{ color: 'var(--good)' }}>Frame Connected</FrameConnected>
+            ) : (
+              <FrameConnected style={{ color: 'var(--moon)' }}>Frame Disconnected</FrameConnected>
+            )}
             <SummonFrameButton>
-              <svg viewBox='0 0 512 512'>
+              <svg viewBox="0 0 512 512">
                 <path
-                  fill='currentColor'
-                  d='M416 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c17.67 0 32 14.33 32 32v256c0 17.67-14.33 32-32 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c53.02 0 96-42.98 96-96V128C512 74.98 469 32 416 32zM342.6 233.4l-128-128c-12.51-12.51-32.76-12.49-45.25 0c-12.5 12.5-12.5 32.75 0 45.25L242.8 224H32C14.31 224 0 238.3 0 256s14.31 32 32 32h210.8l-73.38 73.38c-12.5 12.5-12.5 32.75 0 45.25s32.75 12.5 45.25 0l128-128C355.1 266.1 355.1 245.9 342.6 233.4z'
+                  fill="currentColor"
+                  d="M416 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c17.67 0 32 14.33 32 32v256c0 17.67-14.33 32-32 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c53.02 0 96-42.98 96-96V128C512 74.98 469 32 416 32zM342.6 233.4l-128-128c-12.51-12.51-32.76-12.49-45.25 0c-12.5 12.5-12.5 32.75 0 45.25L242.8 224H32C14.31 224 0 238.3 0 256s14.31 32 32 32h210.8l-73.38 73.38c-12.5 12.5-12.5 32.75 0 45.25s32.75 12.5 45.25 0l128-128C355.1 266.1 355.1 245.9 342.6 233.4z"
                 />
               </svg>
             </SummonFrameButton>
@@ -427,67 +423,65 @@ class _Settings extends React.Component {
     )
   }
 
-  appearAsMMToggle () {
-    return this.props.mmAppear
-      ? (
-        <>
-          <ClusterRow>
-            <ClusterValue>
-              <AppearDescription>
-                <svg viewBox='0 0 576 512'>
-                  <path
-                    fill='var(--mm)'
-                    d='M288 64C39.52 64 0 182.1 0 273.5C0 379.5 78.8 448 176 448c27.33 0 51.21-6.516 66.11-36.79l19.93-40.5C268.3 358.6 278.1 352.4 288 352.1c9.9 .3711 19.7 6.501 25.97 18.63l19.93 40.5C348.8 441.5 372.7 448 400 448c97.2 0 176-68.51 176-174.5C576 182.1 536.5 64 288 64zM160 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S195.3 320 160 320zM416 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S451.3 320 416 320z'
-                  />
-                </svg>
-                <span>
-                  Injecting as <span className='mm'>Metamask</span>
-                </span>
-              </AppearDescription>
-            </ClusterValue>
-          </ClusterRow>
-          <ClusterRow>
-            <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
-              <AppearToggle>
-                <span>
-                  Appear As <span className='frame'>Frame</span> Instead
-                </span>
-              </AppearToggle>
-            </ClusterValue>
-          </ClusterRow>
-        </>
-        )
-      : (
-        <>
-          <ClusterRow>
-            <ClusterValue>
-              <AppearDescription>
-                <svg viewBox='0 0 448 512'>
-                  <path
-                    fill='var(--good)'
-                    d='M176 448C167.3 448 160 455.3 160 464V512h32v-48C192 455.3 184.8 448 176 448zM272 448c-8.75 0-16 7.25-16 16s7.25 16 16 16s16-7.25 16-16S280.8 448 272 448zM164 172l8.205 24.62c1.215 3.645 6.375 3.645 7.59 0L188 172l24.62-8.203c3.646-1.219 3.646-6.375 0-7.594L188 148L179.8 123.4c-1.215-3.648-6.375-3.648-7.59 0L164 148L139.4 156.2c-3.646 1.219-3.646 6.375 0 7.594L164 172zM336.1 315.4C304 338.6 265.1 352 224 352s-80.03-13.43-112.1-36.59C46.55 340.2 0 403.3 0 477.3C0 496.5 15.52 512 34.66 512H128v-64c0-17.75 14.25-32 32-32h128c17.75 0 32 14.25 32 32v64h93.34C432.5 512 448 496.5 448 477.3C448 403.3 401.5 340.2 336.1 315.4zM64 224h13.5C102.3 280.5 158.4 320 224 320s121.8-39.5 146.5-96H384c8.75 0 16-7.25 16-16v-96C400 103.3 392.8 96 384 96h-13.5C345.8 39.5 289.6 0 224 0S102.3 39.5 77.5 96H64C55.25 96 48 103.3 48 112v96C48 216.8 55.25 224 64 224zM104 136C104 113.9 125.5 96 152 96h144c26.5 0 48 17.88 48 40V160c0 53-43 96-96 96h-48c-53 0-96-43-96-96V136z'
-                  />
-                </svg>
-                <span>
-                  Injecting as <span className='frame'>Frame</span>
-                </span>
-              </AppearDescription>
-            </ClusterValue>
-          </ClusterRow>
-          <ClusterRow>
-            <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
-              <AppearToggle>
-                <span>
-                  Appear As <span className='mm'>Metamask</span> Instead
-                </span>
-              </AppearToggle>
-            </ClusterValue>
-          </ClusterRow>
-        </>
-        )
+  appearAsMMToggle() {
+    return this.props.mmAppear ? (
+      <>
+        <ClusterRow>
+          <ClusterValue>
+            <AppearDescription>
+              <svg viewBox="0 0 576 512">
+                <path
+                  fill="var(--mm)"
+                  d="M288 64C39.52 64 0 182.1 0 273.5C0 379.5 78.8 448 176 448c27.33 0 51.21-6.516 66.11-36.79l19.93-40.5C268.3 358.6 278.1 352.4 288 352.1c9.9 .3711 19.7 6.501 25.97 18.63l19.93 40.5C348.8 441.5 372.7 448 400 448c97.2 0 176-68.51 176-174.5C576 182.1 536.5 64 288 64zM160 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S195.3 320 160 320zM416 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S451.3 320 416 320z"
+                />
+              </svg>
+              <span>
+                Injecting as <span className="mm">Metamask</span>
+              </span>
+            </AppearDescription>
+          </ClusterValue>
+        </ClusterRow>
+        <ClusterRow>
+          <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
+            <AppearToggle>
+              <span>
+                Appear As <span className="frame">Frame</span> Instead
+              </span>
+            </AppearToggle>
+          </ClusterValue>
+        </ClusterRow>
+      </>
+    ) : (
+      <>
+        <ClusterRow>
+          <ClusterValue>
+            <AppearDescription>
+              <svg viewBox="0 0 448 512">
+                <path
+                  fill="var(--good)"
+                  d="M176 448C167.3 448 160 455.3 160 464V512h32v-48C192 455.3 184.8 448 176 448zM272 448c-8.75 0-16 7.25-16 16s7.25 16 16 16s16-7.25 16-16S280.8 448 272 448zM164 172l8.205 24.62c1.215 3.645 6.375 3.645 7.59 0L188 172l24.62-8.203c3.646-1.219 3.646-6.375 0-7.594L188 148L179.8 123.4c-1.215-3.648-6.375-3.648-7.59 0L164 148L139.4 156.2c-3.646 1.219-3.646 6.375 0 7.594L164 172zM336.1 315.4C304 338.6 265.1 352 224 352s-80.03-13.43-112.1-36.59C46.55 340.2 0 403.3 0 477.3C0 496.5 15.52 512 34.66 512H128v-64c0-17.75 14.25-32 32-32h128c17.75 0 32 14.25 32 32v64h93.34C432.5 512 448 496.5 448 477.3C448 403.3 401.5 340.2 336.1 315.4zM64 224h13.5C102.3 280.5 158.4 320 224 320s121.8-39.5 146.5-96H384c8.75 0 16-7.25 16-16v-96C400 103.3 392.8 96 384 96h-13.5C345.8 39.5 289.6 0 224 0S102.3 39.5 77.5 96H64C55.25 96 48 103.3 48 112v96C48 216.8 55.25 224 64 224zM104 136C104 113.9 125.5 96 152 96h144c26.5 0 48 17.88 48 40V160c0 53-43 96-96 96h-48c-53 0-96-43-96-96V136z"
+                />
+              </svg>
+              <span>
+                Injecting as <span className="frame">Frame</span>
+              </span>
+            </AppearDescription>
+          </ClusterValue>
+        </ClusterRow>
+        <ClusterRow>
+          <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
+            <AppearToggle>
+              <span>
+                Appear As <span className="mm">Metamask</span> Instead
+              </span>
+            </AppearToggle>
+          </ClusterValue>
+        </ClusterRow>
+      </>
+    )
   }
 
-  chainSelect () {
+  chainSelect() {
     const chains = this.store('availableChains') || []
     const currentChain = this.store('currentChain')
 
@@ -497,7 +491,10 @@ class _Settings extends React.Component {
     }, [])
 
     return rows.map((row) => (
-      <ClusterRow key={row.map(({ chainId }) => chainId).join(':')} style={{ justifyContent: 'flex-start' }}>
+      <ClusterRow
+        key={row.map(({ chainId }) => chainId).join(':')}
+        style={{ justifyContent: 'flex-start' }}
+      >
         {row.map((chain, i) => (
           <ChainButton
             key={chain.chainId}
@@ -511,7 +508,7 @@ class _Settings extends React.Component {
     ))
   }
 
-  currentChain () {
+  currentChain() {
     try {
       const availableChains = this.store('availableChains')
       const currentChain = this.store('currentChain')
@@ -531,7 +528,7 @@ class _Settings extends React.Component {
     }
   }
 
-  renderMainPanel () {
+  renderMainPanel() {
     const isConnected = this.store('frameConnected')
     const {
       tab: { url },
@@ -555,23 +552,21 @@ class _Settings extends React.Component {
       <>
         <ClusterBoxMain style={{ marginTop: '12px' }}>
           <CurrentOriginTitle>
-            <svg viewBox='0 0 512 512'>
+            <svg viewBox="0 0 512 512">
               <path
-                fill='currentColor'
-                d='M448 32C483.3 32 512 60.65 512 96V416C512 451.3 483.3 480 448 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H448zM96 96C78.33 96 64 110.3 64 128C64 145.7 78.33 160 96 160H416C433.7 160 448 145.7 448 128C448 110.3 433.7 96 416 96H96z'
+                fill="currentColor"
+                d="M448 32C483.3 32 512 60.65 512 96V416C512 451.3 483.3 480 448 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H448zM96 96C78.33 96 64 110.3 64 128C64 145.7 78.33 160 96 160H416C433.7 160 448 145.7 448 128C448 110.3 433.7 96 416 96H96z"
               />
             </svg>
             {origin}
           </CurrentOriginTitle>
           <Cluster>
-            {this.store('availableChains').length
-              ? (
-                <>
-                  {this.chainSelect()}
-                  <div style={{ height: '9px' }} />
-                </>
-                )
-              : null}
+            {this.store('availableChains').length ? (
+              <>
+                {this.chainSelect()}
+                <div style={{ height: '9px' }} />
+              </>
+            ) : null}
             {this.appearAsMMToggle()}
           </Cluster>
         </ClusterBoxMain>
@@ -579,7 +574,7 @@ class _Settings extends React.Component {
     )
   }
 
-  render () {
+  render() {
     return (
       <>
         <Overlay />
@@ -609,7 +604,7 @@ const updateCurrentChain = (tab) => {
   })
 }
 
-async function getInitialSettings (tabId) {
+async function getInitialSettings(tabId) {
   return getLocalSetting(tabId, APPEAR_AS_MM)
 }
 
@@ -631,8 +626,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
   const root = document.getElementById('root')
 
-  ReactDOM.render(
-    <Settings tab={activeTab} isSupportedTab={isInjectedTab} mmAppear={mmAppear} />,
-    root
+  createRoot(root).render(
+    <Settings tab={activeTab} isSupportedTab={isInjectedTab} mmAppear={mmAppear} />
   )
 })

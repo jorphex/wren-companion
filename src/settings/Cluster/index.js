@@ -5,7 +5,9 @@ export const ClusterBoxMain = styled.div`
   z-index: 100001;
   border-radius: 26px;
   overflow: hidden;
-  box-shadow: 0px 4px 8px var(--ghostY), 0px 2px 8px var(--ghostY);
+  box-shadow:
+    0px 4px 8px var(--ghostY),
+    0px 2px 8px var(--ghostY);
   border-bottom: 2px solid var(--ghostZ);
   padding: 0;
   text-align: center;

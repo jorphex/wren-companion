@@ -27,7 +27,7 @@ const expectedFiles = new Set([
 
 const files = []
 
-async function walk (directory) {
+async function walk(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     const stats = await lstat(path)
@@ -46,19 +46,27 @@ const missing = [...expectedFiles].filter((file) => !actualFiles.has(file))
 const unexpected = [...actualFiles].filter((file) => !expectedFiles.has(file))
 
 if (missing.length || unexpected.length) {
-  throw new Error(`Extension artifact mismatch; missing=${missing.join(',')} unexpected=${unexpected.join(',')}`)
+  throw new Error(
+    `Extension artifact mismatch; missing=${missing.join(',')} unexpected=${unexpected.join(',')}`
+  )
 }
 
 const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'))
 const packageFile = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
 if (manifest.manifest_version !== 3) throw new Error('Extension artifact must use Manifest V3')
-if (manifest.version !== packageFile.version) throw new Error('Manifest and package versions differ')
-if (manifest.background?.service_worker !== 'index.js') throw new Error('Unexpected background worker')
+if (manifest.version !== packageFile.version)
+  throw new Error('Manifest and package versions differ')
+if (manifest.background?.service_worker !== 'index.js')
+  throw new Error('Unexpected background worker')
 if (manifest.content_scripts?.some(({ js }) => js?.some((file) => !actualFiles.has(file)))) {
   throw new Error('Manifest references a missing content script')
 }
-if (manifest.web_accessible_resources?.some(({ resources }) => resources?.some((file) => !actualFiles.has(file)))) {
+if (
+  manifest.web_accessible_resources?.some(({ resources }) =>
+    resources?.some((file) => !actualFiles.has(file))
+  )
+) {
   throw new Error('Manifest references a missing web-accessible resource')
 }
 if (actualFiles.has('augment.js')) throw new Error('Obsolete augment content must not be packaged')
