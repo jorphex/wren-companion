@@ -57,12 +57,14 @@ class FakeSocket {
 }
 
 const flush = () => new Promise((resolve) => setImmediate(resolve))
+const pause = () => new Promise((resolve) => setTimeout(resolve, 5))
 
-async function waitFor(predicate) {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
+async function waitFor(predicate, timeoutMs = 15_000) {
+  const deadline = Date.now() + timeoutMs
+  do {
     if (predicate()) return
-    await flush()
-  }
+    await pause()
+  } while (Date.now() < deadline)
   throw new Error('Timed out waiting for authentication fixture')
 }
 
