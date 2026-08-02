@@ -70,6 +70,7 @@ export default [
       'src/frame.js',
       'src/index.js',
       'src/inject.js',
+      'src/legacy-provider.js',
       'src/page-connection.js'
     ],
     languageOptions: {

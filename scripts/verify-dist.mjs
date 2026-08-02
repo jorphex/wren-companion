@@ -39,6 +39,8 @@ if (manifest.version !== packageFile.version)
   throw new Error('Manifest and package versions differ')
 if (manifest.background?.service_worker !== 'index.js')
   throw new Error('Unexpected background worker')
+if (manifest.background?.scripts)
+  throw new Error('Chrome manifest includes Firefox background scripts')
 if (manifest.content_scripts?.some(({ js }) => js?.some((file) => !actualFiles.has(file)))) {
   throw new Error('Manifest references a missing content script')
 }
@@ -71,12 +73,24 @@ if (
 if (!manifest.content_security_policy?.extension_pages?.includes('ws://127.0.0.1:1248')) {
   throw new Error('Extension CSP must restrict Frame transport to loopback')
 }
+if (
+  manifest.browser_specific_settings?.gecko?.strict_min_version !== '142.0' ||
+  JSON.stringify(manifest.browser_specific_settings?.gecko?.data_collection_permissions) !==
+    JSON.stringify({ required: ['none'] })
+) {
+  throw new Error('Firefox data-collection declaration is missing or incompatible')
+}
 
 for (const file of ['index.js', 'inject.js']) {
   const bundle = await readFile(join(root, file), 'utf8')
   for (const obsolete of ['embedded_action_res', 'embedded:action', 'tabs.sendMessage']) {
     if (bundle.includes(obsolete)) throw new Error(`${file} retains obsolete bridge: ${obsolete}`)
   }
+}
+
+const settingsBundle = await readFile(join(root, 'settings.js'), 'utf8')
+if (/\b(?:eval|Function)\s*\(/u.test(settingsBundle)) {
+  throw new Error('Settings bundle contains dynamic code evaluation')
 }
 
 console.log(`Verified ${files.length} extension artifact files`)

@@ -503,7 +503,11 @@ class _Settings extends React.Component {
         </ClusterRow>
         <ClusterRow>
           <ClusterValue pointerEvents>
-            <Download href="https://frame.sh" target="_newtab">
+            <Download
+              href="https://github.com/jorphex/frame/releases"
+              target="_blank"
+              rel="noreferrer"
+            >
               Download Frame
             </Download>
           </ClusterValue>

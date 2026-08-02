@@ -2,10 +2,9 @@
 
 ## Current Boundary
 
-This fork produces separately named Chrome and Firefox Manifest V3 ZIP files.
-They are intentionally byte-identical because the manifest declares both the
-Chrome service worker and Firefox background-script entry points. Releases are
-manual-only GitHub drafts and are not published or installed automatically.
+This fork produces separately named Chrome and Firefox Manifest V3 ZIP files
+with browser-specific background declarations. Releases create GitHub drafts
+and are not published or installed automatically.
 
 The extension authenticates itself to Frame using protocol version 2. Frame is
 not authenticated back to the extension, so the same-user host account and the
@@ -33,11 +32,13 @@ manifest.
 
 ## Draft Release
 
-Dispatch **Build a draft companion release** against the exact reviewed commit.
-The optional tag must equal `v<package version>`. The workflow reruns the local
-gate, proves that the minimum desktop commit is an ancestor of the configured
-desktop branch, creates provenance and SBOM attestations, and creates one new
-draft containing the complete artifact set.
+Push the exact `v<package version>` tag from the reviewed commit. This triggers
+**Build a draft companion release** even while the preview workflow is not on
+the repository's default branch. Once the workflow exists on the default branch,
+it may instead be dispatched manually against the same reviewed commit and exact
+tag. The workflow reruns the local gate, proves that the minimum desktop commit
+is an ancestor of the configured desktop branch, creates provenance and SBOM
+attestations, and creates one new draft containing the complete artifact set.
 
 The workflow rejects a tag bound to another source commit and categorically
 refuses to modify an existing release. If a draft build is unusable, delete the

@@ -1,6 +1,9 @@
 name: Build a draft companion release
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       tag:
@@ -33,11 +36,12 @@ jobs:
       - name: Resolve release metadata
         id: release
         env:
+          EVENT_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           REQUESTED_TAG: ${{ inputs.tag }}
         run: |
           version=$(node --print "require('./package.json').version")
           expected_tag="v${version}"
-          tag="${REQUESTED_TAG:-$expected_tag}"
+          tag="${EVENT_TAG:-${REQUESTED_TAG:-$expected_tag}}"
           if [[ "$tag" != "$expected_tag" ]]; then
             echo "Release tag must exactly match package version: $expected_tag" >&2
             exit 1

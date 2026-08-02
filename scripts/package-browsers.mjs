@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process'
-import { chmod, copyFile, cp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { createRequire } from 'node:module'
 import { extensionArtifactFiles } from './artifact-policy.mjs'
+import { createFirefoxManifest } from './browser-manifests.mjs'
 import { readSourceIdentity } from './source-identity.mjs'
 
 const require = createRequire(import.meta.url)
@@ -45,7 +46,16 @@ try {
     cwd: staging,
     env: { ...process.env, TZ: 'UTC' }
   })
-  await copyFile(chromeArchive, firefoxArchive)
+
+  const manifestPath = join(staging, 'manifest.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  await writeFile(manifestPath, `${JSON.stringify(createFirefoxManifest(manifest), null, 2)}\n`)
+  await chmod(manifestPath, 0o644)
+  await utimes(manifestPath, fixedTime, fixedTime)
+  execFileSync('zip', ['-X', '-q', firefoxArchive, ...extensionArtifactFiles], {
+    cwd: staging,
+    env: { ...process.env, TZ: 'UTC' }
+  })
 } finally {
   await rm(staging, { recursive: true, force: true })
 }

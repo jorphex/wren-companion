@@ -64,12 +64,12 @@ for (const browser of ['chrome', 'firefox']) {
   const manifest = JSON.parse(
     execFileSync('unzip', ['-p', archive, 'manifest.json'], { encoding: 'utf8' })
   )
-  if (
-    manifest.version !== version ||
-    manifest.manifest_version !== 3 ||
-    manifest.background?.service_worker !== 'index.js' ||
-    JSON.stringify(manifest.background?.scripts) !== JSON.stringify(['index.js'])
-  ) {
+  const validBackground =
+    browser === 'chrome'
+      ? manifest.background?.service_worker === 'index.js' && !manifest.background?.scripts
+      : !manifest.background?.service_worker &&
+        JSON.stringify(manifest.background?.scripts) === JSON.stringify(['index.js'])
+  if (manifest.version !== version || manifest.manifest_version !== 3 || !validBackground) {
     throw new Error(`${browser} archive has an incompatible manifest`)
   }
 
@@ -83,10 +83,10 @@ for (const browser of ['chrome', 'firefox']) {
 }
 
 if (
-  checksums.get(`frame-companion-${version}-chrome.zip`) !==
+  checksums.get(`frame-companion-${version}-chrome.zip`) ===
   checksums.get(`frame-companion-${version}-firefox.zip`)
 ) {
-  throw new Error('Chrome and Firefox archives unexpectedly differ')
+  throw new Error('Browser-specific archives unexpectedly match')
 }
 
 const compatibility = JSON.parse(

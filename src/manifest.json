@@ -6,8 +6,7 @@
   "description": "Frame companion creates an injected connection to Frame desktop wallet (required) on macOS, Windows or Linux.",
   "homepage_url": "https://github.com/jorphex/frame",
   "background": {
-    "service_worker": "index.js",
-    "scripts": ["index.js"]
+    "service_worker": "index.js"
   },
   "action": {
     "default_title": "Frame Companion",
@@ -36,7 +35,11 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "{77691beb-4c53-48de-ab20-6589a537717a}"
+      "id": "{77691beb-4c53-48de-ab20-6589a537717a}",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "permissions": ["activeTab", "alarms", "idle", "scripting"],

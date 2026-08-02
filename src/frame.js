@@ -1,22 +1,9 @@
 const { PageConnection } = require('./page-connection')
 const FrameProvider = require('./provider')
 const { createProviderInfo } = require('./provider-info')
+const { installLegacyProvider } = require('./legacy-provider')
 
 const BOOTSTRAP_SOURCE = 'frame:bootstrap'
-
-function installLegacyProvider(provider) {
-  const descriptor = Object.getOwnPropertyDescriptor(window, 'ethereum')
-  if (!descriptor || descriptor.configurable) {
-    Object.defineProperty(window, 'ethereum', {
-      value: provider,
-      writable: true,
-      configurable: true,
-      enumerable: true
-    })
-  } else if (descriptor.writable) {
-    window.ethereum = provider
-  }
-}
 
 function installWeb3Shim(provider, appearAsMetaMask) {
   if (window.web3) return
@@ -73,9 +60,5 @@ const announce = () => window.dispatchEvent(new CustomEvent('eip6963:announcePro
 
 window.addEventListener('eip6963:requestProvider', announce)
 announce()
-installLegacyProvider(provider)
+installLegacyProvider(window, provider)
 installWeb3Shim(provider, appearAsMetaMask)
-
-document.addEventListener('readystatechange', () => {
-  if (document.readyState === 'interactive') installLegacyProvider(provider)
-})
