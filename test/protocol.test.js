@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
+const vm = require('node:vm')
 
 const {
   MAX_MESSAGE_BYTES,
@@ -13,6 +14,26 @@ test('accepts and normalizes a bounded JSON-RPC request', () => {
   assert.deepEqual(parsePageRequest({ jsonrpc: '2.0', id: 7, method: 'eth_chainId' }), {
     success: true,
     value: { jsonrpc: '2.0', id: 7, method: 'eth_chainId', params: [] }
+  })
+})
+
+test('normalizes requests transferred from a different JavaScript realm', () => {
+  const request = vm.runInNewContext(`({
+    jsonrpc: '2.0',
+    id: 8,
+    method: 'wallet_requestPermissions',
+    params: { eth_accounts: {} }
+  })`)
+
+  assert.notEqual(Object.getPrototypeOf(request), Object.prototype)
+  assert.deepEqual(parsePageRequest(request), {
+    success: true,
+    value: {
+      jsonrpc: '2.0',
+      id: 8,
+      method: 'wallet_requestPermissions',
+      params: { eth_accounts: {} }
+    }
   })
 })
 

@@ -92,7 +92,16 @@ function parsePageRequestValue(value) {
 
 function parsePageRequest(value) {
   try {
-    return parsePageRequestValue(value)
+    // Firefox retains the page realm for objects transferred to a content script.
+    // JSON-RPC normalization gives both browser realms the same plain-data boundary.
+    const serialized = JSON.stringify(value)
+    if (
+      typeof serialized !== 'string' ||
+      new TextEncoder().encode(serialized).byteLength > MAX_MESSAGE_BYTES
+    ) {
+      return invalidRequest(value)
+    }
+    return parsePageRequestValue(JSON.parse(serialized))
   } catch {
     return invalidRequest(value)
   }
