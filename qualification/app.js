@@ -1,5 +1,4 @@
 const FRAME_RDNS = 'sh.frame'
-const SEPOLIA_CHAIN_ID = '0xaa36a7'
 
 let provider
 let account
@@ -46,7 +45,7 @@ function updateControls() {
   elements.typed.disabled = !connected
   elements.transaction.disabled = !(
     connected &&
-    chainId?.toLowerCase() === SEPOLIA_CHAIN_ID &&
+    globalThis.FrameQualificationTestnets.get(chainId) &&
     elements.confirmation.checked
   )
   elements.account.textContent = account || 'not connected'
@@ -160,8 +159,11 @@ async function run(action) {
     return
   }
   if (action === 'transaction') {
-    if (chainId?.toLowerCase() !== SEPOLIA_CHAIN_ID || !elements.confirmation.checked) {
-      throw new Error('Sepolia and explicit disposable-account confirmation are required')
+    const testnet = globalThis.FrameQualificationTestnets.get(chainId)
+    if (!testnet || !elements.confirmation.checked) {
+      throw new Error(
+        'An approved testnet and explicit disposable-account confirmation are required'
+      )
     }
     const hash = await provider.request({
       method: 'eth_sendTransaction',
@@ -169,7 +171,7 @@ async function run(action) {
     })
     elements.confirmation.checked = false
     updateControls()
-    record('Sepolia transaction submitted', hash, 'success')
+    record(`${testnet.name} transaction submitted`, hash, 'success')
   }
 }
 

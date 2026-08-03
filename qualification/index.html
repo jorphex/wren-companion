@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Frame qualification console</title>
     <link rel="stylesheet" href="/style.css" />
+    <script src="/testnets.js" defer></script>
     <script src="/app.js" defer></script>
   </head>
   <body>
@@ -51,14 +52,14 @@
       </section>
 
       <section>
-        <h2>3. Sepolia transaction</h2>
+        <h2>3. Testnet transaction</h2>
         <p>
           The transaction is a zero-value self-transfer. The button remains disabled unless Frame
-          reports Sepolia (<code>0xaa36a7</code>).
+          reports Ethereum Sepolia (<code>0xaa36a7</code>) or Base Sepolia (<code>0x14a34</code>).
         </p>
         <label class="confirm">
           <input id="transaction-confirmation" type="checkbox" />
-          I verified the selected account is disposable and the active chain is Sepolia.
+          I verified the selected account is disposable and the active chain is an approved testnet.
         </label>
         <div class="actions">
           <button data-action="transaction" disabled>Send zero-value self-transfer</button>
