@@ -58,6 +58,15 @@ class MemoryStorage {
   }
 }
 
+function subtleWithExportedKey(fields) {
+  const subtle = crypto.subtle
+  return {
+    generateKey: subtle.generateKey.bind(subtle),
+    exportKey: async (...args) => ({ ...(await subtle.exportKey(...args)), ...fields }),
+    digest: subtle.digest.bind(subtle)
+  }
+}
+
 test('creates and reuses a nonextractable installation credential', async () => {
   const storage = new MemoryStorage()
   const store = new CredentialStore({ storage, now: () => 1234 })
@@ -75,6 +84,32 @@ test('creates and reuses a nonextractable installation credential', async () => 
   const reloaded = await new CredentialStore({ storage }).get()
   assert.equal(reloaded.fingerprint, first.fingerprint)
   assert.equal(storage.writes, 1)
+})
+
+test('normalizes Firefox WebCrypto public-key algorithm metadata', async () => {
+  const credential = await createCredential(subtleWithExportedKey({ alg: 'ES256' }))
+
+  assert.equal('alg' in credential.publicKey, false)
+  assert.deepEqual(Object.keys(credential.publicKey).sort(), [
+    'crv',
+    'ext',
+    'key_ops',
+    'kty',
+    'x',
+    'y'
+  ])
+  assert.equal(await validateCredential(credential), true)
+})
+
+test('rejects unsupported WebCrypto public-key metadata', async () => {
+  await assert.rejects(
+    createCredential(subtleWithExportedKey({ alg: 'ES384' })),
+    /unsupported companion credential/u
+  )
+  await assert.rejects(
+    createCredential(subtleWithExportedKey({ unexpected: true })),
+    /unsupported companion credential/u
+  )
 })
 
 test('replaces malformed or mismatched persisted credentials', async () => {

@@ -38,6 +38,27 @@ function isPublicKey(publicKey) {
   )
 }
 
+function normalizeExportedPublicKey(publicKey) {
+  if (!publicKey || typeof publicKey !== 'object' || Array.isArray(publicKey)) return publicKey
+
+  const supportedFields = new Set(['alg', 'crv', 'ext', 'key_ops', 'kty', 'x', 'y'])
+  if (
+    Object.keys(publicKey).some((field) => !supportedFields.has(field)) ||
+    (publicKey.alg !== undefined && publicKey.alg !== 'ES256')
+  ) {
+    return publicKey
+  }
+
+  return {
+    kty: publicKey.kty,
+    crv: publicKey.crv,
+    x: publicKey.x,
+    y: publicKey.y,
+    ext: publicKey.ext,
+    key_ops: publicKey.key_ops
+  }
+}
+
 function isPrivateKey(privateKey) {
   return (
     privateKey &&
@@ -66,7 +87,7 @@ async function createCredential(subtle = crypto.subtle, installationId = crypto.
     'sign',
     'verify'
   ])
-  const publicKey = await subtle.exportKey('jwk', keyPair.publicKey)
+  const publicKey = normalizeExportedPublicKey(await subtle.exportKey('jwk', keyPair.publicKey))
   if (!isPublicKey(publicKey) || !isPrivateKey(keyPair.privateKey)) {
     throw new Error('Browser generated an unsupported companion credential')
   }
