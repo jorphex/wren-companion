@@ -6,6 +6,7 @@ const {
   validateChallenge
 } = require('./auth-protocol')
 const { bytesToBase64Url } = require('./credential-store')
+const { clearTimer: clearBrowserTimer, setTimer: setBrowserTimer } = require('./timers')
 
 const CONNECTING = 0
 const OPEN = 1
@@ -22,8 +23,8 @@ class AuthenticatedSocket {
     cryptoApi = crypto,
     now = Date.now,
     onStatus = () => {},
-    setTimer = setTimeout,
-    clearTimer = clearTimeout
+    setTimer = setBrowserTimer,
+    clearTimer = clearBrowserTimer
   }) {
     this.socket = socket
     this.credentialStore = credentialStore

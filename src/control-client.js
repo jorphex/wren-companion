@@ -1,4 +1,5 @@
 const { parseDesktopMessage } = require('./protocol')
+const { clearTimer: clearBrowserTimer, setTimer: setBrowserTimer } = require('./timers')
 
 const CONTROL_METHODS = new Set(['frame_summon', 'wallet_getEthereumChains', 'web3_clientVersion'])
 const DEFAULT_RECONNECT_DELAYS = [250, 500, 1000, 2000, 5000, 10000]
@@ -9,8 +10,8 @@ class ControlClient {
     createSocket,
     onOpen = () => {},
     onClose = () => {},
-    setTimer = setTimeout,
-    clearTimer = clearTimeout,
+    setTimer = setBrowserTimer,
+    clearTimer = clearBrowserTimer,
     requestTimeout = 5 * 60 * 1000,
     reconnectDelays = DEFAULT_RECONNECT_DELAYS
   }) {

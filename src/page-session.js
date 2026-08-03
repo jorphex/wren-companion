@@ -6,6 +6,7 @@ const {
   serializedSize,
   validId
 } = require('./protocol')
+const { clearTimer: clearBrowserTimer, setTimer: setBrowserTimer } = require('./timers')
 
 const MAX_PENDING_REQUESTS = 64
 const MAX_QUEUED_REQUESTS = 64
@@ -74,8 +75,8 @@ class PageSession {
     releaseRequest = () => {},
     randomId = () => crypto.randomUUID(),
     now = Date.now,
-    setTimer = setTimeout,
-    clearTimer = clearTimeout
+    setTimer = setBrowserTimer,
+    clearTimer = clearBrowserTimer
   }) {
     this.port = port
     this.owner = owner
