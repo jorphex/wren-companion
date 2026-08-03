@@ -3,7 +3,7 @@
   "desktop": {
     "repository": "https://github.com/jorphex/frame",
     "branch": "modernization-preview",
-    "commit": "382e42c8e91d40e08817ff3eff690f2948915b4f"
+    "commit": "afb3fc5dbd500189952701cd225d2b11e123f367"
   },
   "protocolVersion": 2
 }
