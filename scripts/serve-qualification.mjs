@@ -13,6 +13,7 @@ if (!Number.isSafeInteger(requestedPort) || requestedPort < 1024 || requestedPor
 const files = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/testnets.js', ['testnets.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']]
 ])
 
