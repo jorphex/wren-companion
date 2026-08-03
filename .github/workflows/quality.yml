@@ -3,8 +3,7 @@ name: Companion quality and package checks
 on:
   push:
     branches:
-      - master
-      - modernization-preview
+      - main
   pull_request:
   workflow_dispatch:
 

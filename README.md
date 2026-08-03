@@ -56,7 +56,7 @@ authenticate the localhost Frame endpoint to the extension. See the
 Release candidates can be exercised with the local, dependency-free
 qualification page by running `npm run qualify:serve`. It binds only to
 `127.0.0.1`; follow the paired desktop [qualification
-procedure](https://github.com/jorphex/frame/blob/modernization-preview/QUALIFICATION.md)
+procedure](https://github.com/jorphex/frame/blob/main/QUALIFICATION.md)
 and use disposable test accounts only.
 
 ### Related

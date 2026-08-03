@@ -3,7 +3,7 @@ version: 2
 updates:
   - package-ecosystem: npm
     directory: /
-    target-branch: modernization-preview
+    target-branch: main
     schedule:
       interval: weekly
       day: monday
@@ -23,7 +23,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
-    target-branch: modernization-preview
+    target-branch: main
     schedule:
       interval: weekly
       day: monday
