@@ -20,6 +20,7 @@ const expected = [
   `frame-companion-${version}-chrome.zip`,
   `frame-companion-${version}-compatibility.json`,
   `frame-companion-${version}-firefox.zip`,
+  `frame-companion-${version}-source.zip`,
   `frame-companion-${version}.cdx.json`
 ].sort()
 const actual = (await readdir(artifacts)).sort()
@@ -103,9 +104,29 @@ if (
   compatibility.companion?.repository !== companionRepository ||
   JSON.stringify(compatibility.desktop) !== JSON.stringify(sourceCompatibility.desktop) ||
   compatibility.browsers?.chrome !== `frame-companion-${version}-chrome.zip` ||
-  compatibility.browsers?.firefox !== `frame-companion-${version}-firefox.zip`
+  compatibility.browsers?.firefox !== `frame-companion-${version}-firefox.zip` ||
+  compatibility.browsers?.firefoxReviewerSource !== `frame-companion-${version}-source.zip`
 ) {
   throw new Error('Invalid compatibility metadata')
+}
+
+const sourcePrefix = `frame-companion-${version}-source/`
+const sourceEntries = execFileSync(
+  'unzip',
+  ['-Z1', join(artifacts, `frame-companion-${version}-source.zip`)],
+  { encoding: 'utf8' }
+)
+  .trim()
+  .split('\n')
+if (
+  !sourceEntries.includes(`${sourcePrefix}MOZILLA_REVIEW.md`) ||
+  !sourceEntries.includes(`${sourcePrefix}package-lock.json`) ||
+  !sourceEntries.includes(`${sourcePrefix}src/manifest.json`) ||
+  sourceEntries.some((entry) =>
+    ['/node_modules/', '/dist/', '/artifacts/', '/.git/'].some((part) => entry.includes(part))
+  )
+) {
+  throw new Error('Firefox reviewer source is incomplete or contains generated content')
 }
 
 console.log(`Verified ${actual.length} companion release artifacts`)

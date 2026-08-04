@@ -1,5 +1,8 @@
 # Security Policy
 
+Data handling and retention are documented separately in the
+[privacy policy](PRIVACY.md).
+
 ## Supported Version
 
 Only the newest release published by

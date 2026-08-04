@@ -18,8 +18,8 @@ const { commit: sourceCommit } = readSourceIdentity()
 if (compatibility.protocolVersion !== AUTH_VERSION) {
   throw new Error('Compatibility metadata and authentication protocol differ')
 }
-if (!/^[0-9a-f]{40}$/.test(compatibility.desktop?.commit || '')) {
-  throw new Error('Compatibility metadata requires an exact desktop commit')
+if (!/^[0-9a-f]{40}$/.test(compatibility.desktop?.minimumCommit || '')) {
+  throw new Error('Compatibility metadata requires a minimum desktop commit')
 }
 
 const root = resolve(new URL('..', import.meta.url).pathname)
@@ -29,6 +29,7 @@ const staging = join(artifacts, `.staging-${process.pid}`)
 const version = packageJson.version
 const chromeArchive = join(artifacts, `frame-companion-${version}-chrome.zip`)
 const firefoxArchive = join(artifacts, `frame-companion-${version}-firefox.zip`)
+const sourceArchive = join(artifacts, `frame-companion-${version}-source.zip`)
 const fixedTime = new Date('1980-01-01T00:00:00.000Z')
 
 await rm(artifacts, { recursive: true, force: true })
@@ -56,6 +57,18 @@ try {
     cwd: staging,
     env: { ...process.env, TZ: 'UTC' }
   })
+
+  execFileSync(
+    'git',
+    [
+      'archive',
+      '--format=zip',
+      `--prefix=frame-companion-${version}-source/`,
+      `--output=${sourceArchive}`,
+      'HEAD'
+    ],
+    { cwd: root, env: { ...process.env, TZ: 'UTC' } }
+  )
 } finally {
   await rm(staging, { recursive: true, force: true })
 }
@@ -69,7 +82,8 @@ const compatibilityArtifact = {
   },
   browsers: {
     chrome: `frame-companion-${version}-chrome.zip`,
-    firefox: `frame-companion-${version}-firefox.zip`
+    firefox: `frame-companion-${version}-firefox.zip`,
+    firefoxReviewerSource: `frame-companion-${version}-source.zip`
   }
 }
 await writeFile(

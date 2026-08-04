@@ -1,12 +1,12 @@
 {
   "name": "frame-extension",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "packageManager": "npm@11.12.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jorphex/frame-extension.git"
   },
-  "description": "Frame Companion Extension",
+  "description": "Community-maintained browser companion for Jorphex Frame desktop",
   "main": "src",
   "scripts": {
     "setup:ci": "node scripts/check-toolchain.mjs && npm ci",
@@ -23,10 +23,11 @@
     "sbom:artifact": "node scripts/generate-sbom.mjs",
     "sbom:verify": "node scripts/verify-sbom.mjs",
     "build": "rimraf ./dist && webpack --config webpack.config.js && node ./src/copy-static.js",
+    "build:firefox": "npm run build && node scripts/build-firefox.mjs && node scripts/verify-dist.mjs dist-firefox firefox",
     "bundle": "webpack --config webpack.config.js",
     "watch": "npm run build && webpack --config webpack.dev.config.js"
   },
-  "author": "Frame Labs, Inc.",
+  "author": "Frame Labs, Inc. and community contributors",
   "license": "GPL-3.0",
   "engines": {
     "node": "24.18.1",
@@ -59,7 +60,7 @@
     "styled-components": "6.4.4"
   },
   "overrides": {
-    "brace-expansion@<=1.1.16": "1.1.17",
+    "brace-expansion@<1.1.18": "1.1.18",
     "ws@>=8.0.0 <8.21.1": "8.21.1",
     "js-yaml@>=4.0.0 <4.3.0": "4.3.0",
     "lodash@>=4.0.0 <4.18.1": "4.18.1"

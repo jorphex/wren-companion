@@ -1,15 +1,15 @@
 {
-  "name": "Frame Companion",
-  "version": "0.13.0",
+  "name": "Frame Community Companion",
+  "version": "0.13.1",
   "manifest_version": 3,
   "minimum_chrome_version": "116",
-  "description": "Frame companion creates an injected connection to Frame desktop wallet (required) on macOS, Windows or Linux.",
-  "homepage_url": "https://github.com/jorphex/frame",
+  "description": "Community-maintained companion connecting browser dapps to the Jorphex Frame desktop wallet.",
+  "homepage_url": "https://github.com/jorphex/frame-extension",
   "background": {
     "service_worker": "index.js"
   },
   "action": {
-    "default_title": "Frame Companion",
+    "default_title": "Frame Community Companion",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -35,18 +35,19 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "{77691beb-4c53-48de-ab20-6589a537717a}",
+      "id": "{53cfd564-e246-4c76-808c-8648768988d5}",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
     }
   },
-  "permissions": ["activeTab", "alarms", "idle", "scripting"],
+  "permissions": ["alarms", "scripting"],
   "host_permissions": ["https://*/*", "http://*/*"],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
-    "96": "icons/icon96.png"
+    "96": "icons/icon96.png",
+    "128": "icons/icon128.png"
   }
 }

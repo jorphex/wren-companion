@@ -1,15 +1,20 @@
 # Companion Release Procedure
 
-## Current Boundary
+## Release Boundary
 
-This fork produces separately named Chrome and Firefox Manifest V3 ZIP files
-with browser-specific background declarations. Releases create GitHub drafts
-and are not published or installed automatically.
+Frame Community Companion is versioned independently from Frame desktop. A
+companion release declares its authentication protocol and the minimum
+compatible desktop commit in `compatibility.json`. It remains compatible with
+later desktop releases while they retain that protocol; a desktop UI, signer,
+or wallet-feature release does not require another browser-store submission.
 
-The extension authenticates itself to Frame using protocol version 2. Frame is
-not authenticated back to the extension, so the same-user host account and the
-owner of the localhost endpoint remain trusted. Each release includes exact
-source and minimum compatible desktop commits in a compatibility JSON file.
+The fork produces separate Chrome and Firefox Manifest V3 ZIP files. The
+Firefox package has a unique add-on ID and matching reviewer-source ZIP. It does
+not claim or update the existing upstream Frame store listings.
+
+The extension authenticates itself to Frame using protocol 2. Frame is not
+authenticated back to the extension, so the same-user host account and owner of
+the localhost endpoint remain trusted. See `SECURITY.md` and `PRIVACY.md`.
 
 ## Local Gate
 
@@ -25,42 +30,40 @@ npm run package:browsers
 npm run package:verify
 ```
 
-The `artifacts/` directory must contain only both browser ZIPs, compatibility
-metadata, a production CycloneDX SBOM, and `SHA256SUMS`. Repeating the package
-commands from the same commit and lockfile must reproduce the complete checksum
-manifest.
+`artifacts/` must contain Chrome and Firefox ZIPs, Firefox reviewer source,
+compatibility metadata, a production CycloneDX SBOM, and `SHA256SUMS`. Repeating
+the package commands from the same commit and lockfile must reproduce every
+checksum.
 
-## Draft Release
+## GitHub Release
 
-Push the exact `v<package version>` tag from the reviewed commit. This triggers
-**Build a draft companion release** even while the preview workflow is not on
-the repository's default branch. Once the workflow exists on the default branch,
-it may instead be dispatched manually against the same reviewed commit and exact
-tag. The workflow reruns the local gate, proves that the minimum desktop commit
-is an ancestor of the configured desktop branch, creates provenance and SBOM
-attestations, and creates one new draft containing the complete artifact set.
+Push an exact `v<package version>` tag from the reviewed commit. The release
+workflow reruns the gate, proves the minimum desktop commit remains on the
+configured branch, emits provenance and SBOM attestations, and creates a new
+draft release. It refuses to modify an existing release or reuse a tag bound to
+another commit.
 
-The workflow rejects a tag bound to another source commit and categorically
-refuses to modify an existing release. If a draft build is unusable, delete the
-entire draft or bump the package version; never merge artifacts from separate
-runs.
+If a draft is unusable, delete the entire draft or bump the package version.
+Never combine artifacts from separate runs. Publishing the GitHub draft does
+not submit anything to a browser store.
 
 ## Manual Qualification
 
-Before publication, use disposable accounts and inspect both archives:
+Before GitHub or store publication, use disposable accounts:
 
-1. Verify `SHA256SUMS` and the GitHub attestations.
-2. Load the Chrome archive unpacked in current Chrome or Chromium and load the
-   Firefox archive temporarily in current Firefox.
-3. Pair each clean browser profile with the exact compatible Frame desktop
-   candidate and confirm the six-digit code in both interfaces.
-4. Confirm EIP-6963 discovery, legacy injection, connection approval, account and
+1. Verify `SHA256SUMS` and GitHub attestations.
+2. Load the Chrome ZIP unpacked in current Chrome and the Firefox ZIP
+   temporarily in current Firefox.
+3. Pair each clean browser profile with a protocol-2 Frame desktop and compare
+   the six-digit code in both interfaces.
+4. Confirm EIP-6963 and legacy discovery, connection approval, account and
    chain events, rejection, reconnect, extension reset, and desktop revocation.
-5. Confirm that one tab, iframe, or browser profile never receives another
-   document's response, event, subscription, or pairing authority.
-6. Re-run the desktop signer and package qualification matrix before publishing
-   the paired release candidates.
+5. Confirm tabs, iframes, and browser profiles never receive another document's
+   response, event, subscription, or pairing authority.
 
-Chrome Web Store and Mozilla Add-ons publication are not configured. Store
-signing, review, update channels, and persistent Firefox installation remain
-external release prerequisites.
+## Store Publication
+
+Browser-store credentials and publication remain manual and external. Follow
+`STORE_SUBMISSION.md`; submit only the exact verified browser ZIP, and provide
+the matching source ZIP to Mozilla. A future companion update is needed only
+for companion behavior, security, permissions, or an incompatible protocol.

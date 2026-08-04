@@ -1,6 +1,7 @@
 .cache
 .DS_Store
 dist
+dist-firefox
 artifacts
 node_modules
 Frame

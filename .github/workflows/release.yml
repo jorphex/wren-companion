@@ -63,13 +63,13 @@ jobs:
           mapfile -t metadata < <(node --input-type=module <<'NODE'
           import { readFile } from 'node:fs/promises'
           const compatibility = JSON.parse(await readFile('compatibility.json', 'utf8'))
-          const { repository, branch, commit } = compatibility.desktop || {}
+          const { repository, branch, minimumCommit } = compatibility.desktop || {}
           if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository || '')) process.exit(1)
           if (!/^[A-Za-z0-9._/-]+$/.test(branch || '') || branch.includes('..')) process.exit(1)
-          if (!/^[0-9a-f]{40}$/.test(commit || '')) process.exit(1)
+          if (!/^[0-9a-f]{40}$/.test(minimumCommit || '')) process.exit(1)
           console.log(repository)
           console.log(branch)
-          console.log(commit)
+          console.log(minimumCommit)
           NODE
           )
           if [[ ${#metadata[@]} -ne 3 ]]; then
@@ -96,7 +96,9 @@ jobs:
       - name: Attest package SBOM
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
-          subject-path: artifacts/*.zip
+          subject-path: |
+            artifacts/*-chrome.zip
+            artifacts/*-firefox.zip
           sbom-path: artifacts/frame-companion-${{ steps.release.outputs.version }}.cdx.json
       - name: Create draft release
         env:

@@ -11,6 +11,7 @@ export const extensionArtifactFiles = Object.freeze([
   'icons/icon96.png',
   'icons/icon96good.png',
   'icons/icon96moon.png',
+  'icons/icon128.png',
   'index.js',
   'inject.js',
   'manifest.json',

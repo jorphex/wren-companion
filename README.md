@@ -1,11 +1,20 @@
 <h2 align="center">
   <br>
-  <img src="https://github.com/floating/frame/raw/master/asset/png/FrameLogo512.png?raw=true" alt="Frame" width="150" />
+  <img src="src/FrameLogo.png" alt="Frame" width="150" />
   <br>
   <br>
-  <div align="center">Frame Browser Extension :link: </div>
+  <div align="center">Frame Community Companion :link: </div>
   <br>
 </h2>
+
+This community-maintained browser companion connects web dapps to the
+[Jorphex Frame](https://github.com/jorphex/frame) desktop wallet. It is a fork
+of the original [Frame extension](https://github.com/frame-labs/frame-extension)
+and is not an official Frame Labs release.
+
+Companion `0.13.1` speaks authenticated protocol 2. It supports the minimum
+desktop commit recorded in `compatibility.json` and later Frame releases that
+retain protocol 2; desktop releases do not require new companion submissions.
 
 ### Build
 
@@ -25,8 +34,9 @@
 ### Install
 
 Use only a companion build paired with the minimum Frame desktop commit recorded
-in its `*-compatibility.json` artifact. Published archives include checksums and
-a production SBOM; see the [release procedure](RELEASE.md).
+in its `*-compatibility.json` artifact. Published archives include checksums, a
+production SBOM, and Firefox reviewer source; see the [release
+procedure](RELEASE.md).
 
 To create the browser archives locally:
 
@@ -58,6 +68,10 @@ qualification page by running `npm run qualify:serve`. It binds only to
 `127.0.0.1`; follow the paired desktop [qualification
 procedure](https://github.com/jorphex/frame/blob/main/QUALIFICATION.md)
 and use disposable test accounts only.
+
+The companion has no telemetry or remote code. Its local data handling is
+documented in the [privacy policy](PRIVACY.md), and store submission material is
+maintained in [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
 ### Related
 
