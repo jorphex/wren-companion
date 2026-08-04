@@ -77,10 +77,17 @@ Privacy form answers:
   does not collect or receive them. Certify all applicable limited-use
   statements.
 
-The dashboard also requires the 128x128 icon from `src/icons/icon128.png`, the
-prepared `store-assets/promo-440x280.png` small promotional tile, and at least
-one 1280x800 screenshot of the real paired extension experience. Do not reuse
-screenshots from the upstream listing.
+The dashboard also requires the 128x128 icon from `src/icons/icon128.png` and
+the prepared `store-assets/promo-440x280.png` small promotional tile. Upload
+these real 1280x800 product screenshots in this order:
+
+1. `store-assets/screenshot-connected-1280x800.png` — Companion connected to
+   Frame while available to a browser dapp.
+2. `store-assets/screenshot-pairing-1280x800.png` — matching six-digit approval
+   codes in Companion and Frame desktop.
+
+The public dapp in the first screenshot is shown only to demonstrate the
+companion in normal use. Do not reuse screenshots from the upstream listing.
 
 Test instructions for reviewers:
 

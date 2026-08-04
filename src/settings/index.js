@@ -471,7 +471,7 @@ class _Settings extends React.Component {
       <ClusterBoxMain style={{ marginTop: '12px' }}>
         <Cluster>
           <ClusterRow>
-            <ClusterValue>
+            <ClusterValue pointerEvents>
               <PairingButton
                 confirm={confirm}
                 onClick={() => {
