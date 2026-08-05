@@ -62,13 +62,13 @@ class PageConnection extends EventEmitter {
 
   post(message) {
     const bytes = serializedSize(message)
-    if (bytes > MAX_MESSAGE_BYTES) throw new Error('Frame page message exceeds transport limit')
+    if (bytes > MAX_MESSAGE_BYTES) throw new Error('Wren page message exceeds transport limit')
     if (this.port) {
       this.port.postMessage(message)
       return
     }
     if (this.queue.length >= MAX_QUEUED_MESSAGES || this.queuedBytes + bytes > MAX_QUEUED_BYTES) {
-      throw new Error('Frame page connection queue exceeded')
+      throw new Error('Wren page connection queue exceeded')
     }
     this.queue.push({ value: message, bytes })
     this.queuedBytes += bytes

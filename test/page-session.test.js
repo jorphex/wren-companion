@@ -276,7 +276,7 @@ test('rejects pending requests and reconnects after a transport close', () => {
     payload: {
       jsonrpc: '2.0',
       id: 1,
-      error: { code: 4900, message: 'Frame disconnected' }
+      error: { code: 4900, message: 'Wren disconnected' }
     }
   })
   assert.equal(timers[0].delay, 250)
@@ -332,7 +332,7 @@ test('fails closed on malformed desktop messages and duplicate request IDs', () 
   assert.equal(port.messages.at(-1).payload.error.code, -32600)
   sockets[0].open()
   sockets[0].emit('message', { data: '{bad json' })
-  assert.deepEqual(sockets[0].closeArgs, [1002, 'Invalid Frame response'])
+  assert.deepEqual(sockets[0].closeArgs, [1002, 'Invalid Wren response'])
 })
 
 test('accounts for aggregate request bytes until a response releases them', () => {
@@ -365,7 +365,7 @@ test('closes instead of buffering more than the per-socket byte limit', () => {
   port.onMessage.emit(request())
   sockets[0].bufferedAmount = 2 * 1024 * 1024
   sockets[0].open()
-  assert.deepEqual(sockets[0].closeArgs, [1013, 'Frame request buffer exceeded'])
+  assert.deepEqual(sockets[0].closeArgs, [1013, 'Wren request buffer exceeded'])
 })
 
 test('closes and rejects a request when the browser socket send fails', () => {
@@ -375,6 +375,6 @@ test('closes and rejects a request when the browser socket send fails', () => {
   sockets[0].failSend = true
   port.onMessage.emit(request(9))
 
-  assert.deepEqual(sockets[0].closeArgs, [1013, 'Frame request buffer exceeded'])
+  assert.deepEqual(sockets[0].closeArgs, [1013, 'Wren request buffer exceeded'])
   assert.equal(port.messages.at(-1).payload.error.code, 4900)
 })

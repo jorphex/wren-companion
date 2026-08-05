@@ -1,7 +1,7 @@
 # Mozilla Reviewer Build Instructions
 
-Frame Community Companion is a GPL-3.0 community fork of
-`frame-labs/frame-extension`. It differs from the upstream store add-on through
+Wren Companion is derived from the GPL-3.0
+`frame-labs/frame-extension` project. It differs from the upstream add-on through
 authenticated protocol-2 pairing, strict origin/document routing, EIP-6963
 discovery, Manifest V3 support, and current browser/dependency maintenance.
 
@@ -34,7 +34,7 @@ submitted ZIP:
 
 ```bash
 mkdir submitted
-unzip frame-companion-0.13.1-firefox.zip -d submitted
+unzip wren-companion-0.14.0-firefox.zip -d submitted
 diff -qr dist-firefox submitted
 ```
 
@@ -43,7 +43,7 @@ The release package is produced from the same source with
 
 ## Functional Test
 
-Frame desktop is required and must be running locally. Open the extension,
+Wren desktop is required and must be running locally. Open the extension,
 compare the six-digit pairing code in both interfaces, approve the companion in
-Frame, then open a dapp or the repository's local qualification page. No account
+Wren, then open a dapp or the repository's local qualification page. No account
 or paid service is required. Use only disposable test accounts.

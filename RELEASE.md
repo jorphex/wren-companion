@@ -2,7 +2,7 @@
 
 ## Release Boundary
 
-Frame Community Companion is versioned independently from Frame desktop. A
+Wren Companion is versioned independently from Wren desktop. A
 companion release declares its authentication protocol and the minimum
 compatible desktop commit in `compatibility.json`. It remains compatible with
 later desktop releases while they retain that protocol; a desktop UI, signer,
@@ -12,7 +12,7 @@ The fork produces separate Chrome and Firefox Manifest V3 ZIP files. The
 Firefox package has a unique add-on ID and matching reviewer-source ZIP. It does
 not claim or update the existing upstream Frame store listings.
 
-The extension authenticates itself to Frame using protocol 2. Frame is not
+The extension authenticates itself to Wren using protocol 2. Wren is not
 authenticated back to the extension, so the same-user host account and owner of
 the localhost endpoint remain trusted. See `SECURITY.md` and `PRIVACY.md`.
 
@@ -54,7 +54,7 @@ Before GitHub or store publication, use disposable accounts:
 1. Verify `SHA256SUMS` and GitHub attestations.
 2. Load the Chrome ZIP unpacked in current Chrome and the Firefox ZIP
    temporarily in current Firefox.
-3. Pair each clean browser profile with a protocol-2 Frame desktop and compare
+3. Pair each clean browser profile with a protocol-2 Wren desktop and compare
    the six-digit code in both interfaces.
 4. Confirm EIP-6963 and legacy discovery, connection approval, account and
    chain events, rejection, reconnect, extension reset, and desktop revocation.

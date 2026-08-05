@@ -9,7 +9,7 @@ const subscriptionEvents = new Set([
 ])
 
 function providerError(error, fallbackCode = -32603) {
-  const result = new Error(error?.message || 'Frame request failed')
+  const result = new Error(error?.message || 'Wren request failed')
   result.code = Number.isFinite(error?.code) ? error.code : fallbackCode
   if (error && Object.prototype.hasOwnProperty.call(error, 'data')) result.data = error.data
   return result
@@ -111,11 +111,11 @@ class FrameProvider extends EventEmitter {
       }
       const disconnected = () => {
         cleanup()
-        reject(providerError({ code: 4900, message: 'Frame disconnected' }))
+        reject(providerError({ code: 4900, message: 'Wren disconnected' }))
       }
       const timer = setTimeout(() => {
         cleanup()
-        reject(providerError({ code: 4900, message: 'Frame connection timed out' }))
+        reject(providerError({ code: 4900, message: 'Wren connection timed out' }))
       }, 5000)
       this.once('connect', connected)
       this.once('_frameTransportClose', disconnected)
@@ -195,7 +195,7 @@ class FrameProvider extends EventEmitter {
     this.subscriptions.clear()
     this.subscriptionPromises.clear()
     this.emit('_frameTransportClose')
-    const error = providerError({ code: 4900, message: 'Frame disconnected' })
+    const error = providerError({ code: 4900, message: 'Wren disconnected' })
     for (const { reject } of this.pending.values()) reject(error)
     this.pending.clear()
     if (!shouldEmit) return

@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const { installLegacyProvider } = require('../src/legacy-provider')
 
-test('installs Frame only when no legacy provider exists', () => {
+test('installs Wren only when no legacy provider exists', () => {
   const target = {}
   const provider = { isFrame: true }
 

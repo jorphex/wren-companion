@@ -1,5 +1,4 @@
 export const extensionArtifactFiles = Object.freeze([
-  'FrameLogo.png',
   'frame.js',
   'icon.png',
   'icons/icon16.png',

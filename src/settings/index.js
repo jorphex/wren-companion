@@ -401,7 +401,7 @@ class _Settings extends React.Component {
                   <PairingTitle>Confirm Companion Pairing</PairingTitle>
                   <PairingCode>{authentication.pairingCode}</PairingCode>
                   <PairingDetail>
-                    Approve only if this code matches the Frame desktop prompt.
+                    Approve only if this code matches the Wren desktop prompt.
                   </PairingDetail>
                 </PairingPanel>
               </ClusterValue>
@@ -437,7 +437,7 @@ class _Settings extends React.Component {
                 <PairingPanel>
                   <PairingTitle>Authenticating Companion</PairingTitle>
                   <PairingDetail>
-                    Proving this Companion installation to Frame desktop.
+                    Proving this Companion installation to Wren desktop.
                   </PairingDetail>
                 </PairingPanel>
               </ClusterValue>
@@ -495,8 +495,8 @@ class _Settings extends React.Component {
         <ClusterRow>
           <ClusterValue>
             <div style={{ paddingBottom: '32px' }}>
-              <NotConnected>Unable to connect to Frame</NotConnected>
-              <CannotConnectSub>Make sure the Frame desktop app is running</CannotConnectSub>
+              <NotConnected>Unable to connect to Wren</NotConnected>
+              <CannotConnectSub>Make sure the Wren desktop app is running</CannotConnectSub>
               <CannotConnectSub>on your machine or download it below</CannotConnectSub>
             </div>
           </ClusterValue>
@@ -504,11 +504,11 @@ class _Settings extends React.Component {
         <ClusterRow>
           <ClusterValue pointerEvents>
             <Download
-              href="https://github.com/jorphex/frame/releases"
+              href="https://github.com/jorphex/wren/releases"
               target="_blank"
               rel="noreferrer"
             >
-              Download Frame
+              Download Wren
             </Download>
           </ClusterValue>
         </ClusterRow>
@@ -524,7 +524,7 @@ class _Settings extends React.Component {
             <div style={{ paddingBottom: '32px' }}>
               <UnsupportedTab>Unsupported tab</UnsupportedTab>
               <CannotConnectSub>
-                <div>Frame does not have access to</div>
+                <div>Wren does not have access to</div>
                 <UnsupportedOrigin>{origin}</UnsupportedOrigin>
                 <div>tabs in this browser</div>
               </CannotConnectSub>
@@ -556,9 +556,9 @@ class _Settings extends React.Component {
               <img src={isConnected ? '../icons/icon96good.png' : '../icons/icon96moon.png'} />
             </LogoWrap>
             {isConnected ? (
-              <FrameConnected style={{ color: 'var(--good)' }}>Frame Connected</FrameConnected>
+              <FrameConnected style={{ color: 'var(--good)' }}>Wren Connected</FrameConnected>
             ) : (
-              <FrameConnected style={{ color: 'var(--moon)' }}>Frame Disconnected</FrameConnected>
+              <FrameConnected style={{ color: 'var(--moon)' }}>Wren Disconnected</FrameConnected>
             )}
             <SummonFrameButton>
               <svg viewBox="0 0 512 512">
@@ -596,7 +596,7 @@ class _Settings extends React.Component {
           <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
             <AppearToggle>
               <span>
-                Appear As <span className="frame">Frame</span> Instead
+                Appear As <span className="frame">Wren</span> Instead
               </span>
             </AppearToggle>
           </ClusterValue>
@@ -614,7 +614,7 @@ class _Settings extends React.Component {
                 />
               </svg>
               <span>
-                Injecting as <span className="frame">Frame</span>
+                Injecting as <span className="frame">Wren</span>
               </span>
             </AppearDescription>
           </ClusterValue>

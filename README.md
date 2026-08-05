@@ -1,26 +1,30 @@
 <h2 align="center">
   <br>
-  <img src="src/FrameLogo.png" alt="Frame" width="150" />
+  <img src="src/icon.png" alt="Wren" width="128" />
   <br>
   <br>
-  <div align="center">Frame Community Companion :link: </div>
+  <div align="center">Wren Companion</div>
   <br>
 </h2>
 
-This community-maintained browser companion connects web dapps to the
-[Jorphex Frame](https://github.com/jorphex/frame) desktop wallet. It is a fork
-of the original [Frame extension](https://github.com/frame-labs/frame-extension)
-and is not an official Frame Labs release.
+Wren Companion connects browser dapps to the
+[Wren](https://github.com/jorphex/wren) desktop wallet. It is derived from the
+original [Frame extension](https://github.com/frame-labs/frame-extension) under
+GPL-3.0 and is not affiliated with or endorsed by Frame Labs.
 
-Companion `0.13.1` speaks authenticated protocol 2. It supports the minimum
-desktop commit recorded in `compatibility.json` and later Frame releases that
+Companion `0.14.0` speaks authenticated protocol 2. It supports the minimum
+desktop commit recorded in `compatibility.json` and later Wren releases that
 retain protocol 2; desktop releases do not require new companion submissions.
+
+Some internal `frame_*` protocol labels and the `isFrame` provider flag remain
+for compatibility with existing desktop releases and dapps. Public discovery
+uses the Wren name and `io.github.jorphex.wren` reverse-domain identifier.
 
 ### Build
 
 ```bash
 # Clone
-› git clone https://github.com/jorphex/frame-extension
+› git clone https://github.com/jorphex/wren-companion
 
 # Use the pinned Node version
 › nvm install
@@ -33,7 +37,7 @@ retain protocol 2; desktop releases do not require new companion submissions.
 
 ### Install
 
-Use only a companion build paired with the minimum Frame desktop commit recorded
+Use only a companion build paired with the minimum Wren desktop commit recorded
 in its `*-compatibility.json` artifact. Published archives include checksums, a
 production SBOM, and Firefox reviewer source; see the [release
 procedure](RELEASE.md).
@@ -58,15 +62,15 @@ Add-on", and choose `manifest.json` at the extracted archive root, or
 `dist/manifest.json` for a local build.
 
 On first connection, compare and approve the six-digit pairing code in both
-Frame and the extension. Frame can revoke a paired credential and the extension
-settings can reset it. Pairing authenticates the extension to Frame; it does not
-authenticate the localhost Frame endpoint to the extension. See the
+Wren and the extension. Wren can revoke a paired credential and the extension
+settings can reset it. Pairing authenticates the extension to Wren; it does not
+authenticate the localhost Wren endpoint to the extension. See the
 [security policy](SECURITY.md) for the complete boundary.
 
 Release candidates can be exercised with the local, dependency-free
 qualification page by running `npm run qualify:serve`. It binds only to
 `127.0.0.1`; follow the paired desktop [qualification
-procedure](https://github.com/jorphex/frame/blob/main/QUALIFICATION.md)
+procedure](https://github.com/jorphex/wren/blob/main/QUALIFICATION.md)
 and use disposable test accounts only.
 
 The companion has no telemetry or remote code. Its local data handling is
@@ -75,4 +79,4 @@ maintained in [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
 ### Related
 
-- [Frame](https://github.com/jorphex/frame) - A cross-platform Ethereum provider interface
+- [Wren](https://github.com/jorphex/wren) - Desktop EVM wallet and system-wide provider

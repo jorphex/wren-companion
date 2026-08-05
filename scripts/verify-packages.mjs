@@ -17,11 +17,11 @@ const sourceCompatibility = JSON.parse(await readFile(join(root, 'compatibility.
 const version = packageJson.version
 const expected = [
   'SHA256SUMS',
-  `frame-companion-${version}-chrome.zip`,
-  `frame-companion-${version}-compatibility.json`,
-  `frame-companion-${version}-firefox.zip`,
-  `frame-companion-${version}-source.zip`,
-  `frame-companion-${version}.cdx.json`
+  `wren-companion-${version}-chrome.zip`,
+  `wren-companion-${version}-compatibility.json`,
+  `wren-companion-${version}-firefox.zip`,
+  `wren-companion-${version}-source.zip`,
+  `wren-companion-${version}.cdx.json`
 ].sort()
 const actual = (await readdir(artifacts)).sort()
 if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -57,7 +57,7 @@ for (const [file, expectedDigest] of checksums) {
 }
 
 for (const browser of ['chrome', 'firefox']) {
-  const archive = join(artifacts, `frame-companion-${version}-${browser}.zip`)
+  const archive = join(artifacts, `wren-companion-${version}-${browser}.zip`)
   const entries = execFileSync('unzip', ['-Z1', archive], { encoding: 'utf8' }).trim().split('\n')
   if (JSON.stringify(entries) !== JSON.stringify(extensionArtifactFiles)) {
     throw new Error(`${browser} archive inventory differs from policy`)
@@ -74,7 +74,7 @@ for (const browser of ['chrome', 'firefox']) {
     throw new Error(`${browser} archive has an incompatible manifest`)
   }
 
-  const extracted = await mkdtemp(join(tmpdir(), `frame-companion-${browser}-`))
+  const extracted = await mkdtemp(join(tmpdir(), `wren-companion-${browser}-`))
   try {
     execFileSync('unzip', ['-q', archive, '-d', extracted])
     execFileSync(process.execPath, [join(root, 'scripts/verify-dist.mjs'), extracted, browser])
@@ -84,14 +84,14 @@ for (const browser of ['chrome', 'firefox']) {
 }
 
 if (
-  checksums.get(`frame-companion-${version}-chrome.zip`) ===
-  checksums.get(`frame-companion-${version}-firefox.zip`)
+  checksums.get(`wren-companion-${version}-chrome.zip`) ===
+  checksums.get(`wren-companion-${version}-firefox.zip`)
 ) {
   throw new Error('Browser-specific archives unexpectedly match')
 }
 
 const compatibility = JSON.parse(
-  await readFile(join(artifacts, `frame-companion-${version}-compatibility.json`), 'utf8')
+  await readFile(join(artifacts, `wren-companion-${version}-compatibility.json`), 'utf8')
 )
 const { commit: sourceCommit } = readSourceIdentity()
 const companionRepository = packageJson.repository.url.replace(/^git\+|\.git$/g, '')
@@ -103,17 +103,17 @@ if (
   compatibility.companion?.commit !== sourceCommit ||
   compatibility.companion?.repository !== companionRepository ||
   JSON.stringify(compatibility.desktop) !== JSON.stringify(sourceCompatibility.desktop) ||
-  compatibility.browsers?.chrome !== `frame-companion-${version}-chrome.zip` ||
-  compatibility.browsers?.firefox !== `frame-companion-${version}-firefox.zip` ||
-  compatibility.browsers?.firefoxReviewerSource !== `frame-companion-${version}-source.zip`
+  compatibility.browsers?.chrome !== `wren-companion-${version}-chrome.zip` ||
+  compatibility.browsers?.firefox !== `wren-companion-${version}-firefox.zip` ||
+  compatibility.browsers?.firefoxReviewerSource !== `wren-companion-${version}-source.zip`
 ) {
   throw new Error('Invalid compatibility metadata')
 }
 
-const sourcePrefix = `frame-companion-${version}-source/`
+const sourcePrefix = `wren-companion-${version}-source/`
 const sourceEntries = execFileSync(
   'unzip',
-  ['-Z1', join(artifacts, `frame-companion-${version}-source.zip`)],
+  ['-Z1', join(artifacts, `wren-companion-${version}-source.zip`)],
   { encoding: 'utf8' }
 )
   .trim()

@@ -178,7 +178,7 @@ class PageSession {
         this.pending.delete(id)
         this.removeQueued(id)
         this.releaseEntry(pending)
-        reject(Object.assign(new Error('Frame control request timed out'), { code: -32002 }))
+        reject(Object.assign(new Error('Wren control request timed out'), { code: -32002 }))
       }, CONTROL_REQUEST_TIMEOUT_MS)
       this.sendRequest(
         request,
@@ -215,7 +215,7 @@ class PageSession {
 
     if (this.socket?.readyState === WEB_SOCKET_OPEN) {
       if (!this.sendSocket(this.socket, serialized, bytes)) {
-        this.closeSocket(this.socket, 1013, 'Frame request buffer exceeded')
+        this.closeSocket(this.socket, 1013, 'Wren request buffer exceeded')
       }
       return
     }
@@ -240,7 +240,7 @@ class PageSession {
     try {
       socket = this.createSocket(this)
     } catch {
-      this.rejectPending(-32005, 'Frame connection capacity exceeded')
+      this.rejectPending(-32005, 'Wren connection capacity exceeded')
       this.scheduleReconnect()
       return
     }
@@ -262,7 +262,7 @@ class PageSession {
     this.queuedBytes = 0
     for (const item of queue) {
       if (this.pending.has(item.id) && !this.sendSocket(socket, item.serialized, item.bytes)) {
-        this.closeSocket(socket, 1013, 'Frame request buffer exceeded')
+        this.closeSocket(socket, 1013, 'Wren request buffer exceeded')
         break
       }
     }
@@ -290,7 +290,7 @@ class PageSession {
     if (this.closed || socket !== this.socket) return
     const parsed = parseDesktopMessage(event.data)
     if (!parsed.success) {
-      this.closeSocket(socket, 1002, 'Invalid Frame response')
+      this.closeSocket(socket, 1002, 'Invalid Wren response')
       return
     }
 
@@ -320,7 +320,7 @@ class PageSession {
     if (socket !== this.socket) return
     this.socket = undefined
     this.setConnected(false)
-    this.rejectPending(4900, 'Frame disconnected')
+    this.rejectPending(4900, 'Wren disconnected')
     if (!this.closed && this.everUsed) this.scheduleReconnect()
   }
 
@@ -337,7 +337,7 @@ class PageSession {
     const socket = this.socket
     this.socket = undefined
     this.setConnected(false)
-    this.rejectPending(4900, 'Frame disconnected')
+    this.rejectPending(4900, 'Wren disconnected')
     if (socket) this.closeSocket(socket, 1000, 'Companion authentication reset')
   }
 
@@ -417,7 +417,7 @@ class PageSession {
     if (this.closed) return
     this.closed = true
     this.clearReconnectTimer()
-    this.rejectPending(4900, 'Frame disconnected')
+    this.rejectPending(4900, 'Wren disconnected')
     this.port.onMessage.removeListener(this.handlePortMessage)
     this.port.onDisconnect.removeListener(this.handlePortDisconnect)
     if (this.socket) {

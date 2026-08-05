@@ -106,7 +106,7 @@ class AuthenticatedSocket {
       return
     }
     if (this.processing || (this.state !== 'challenge' && this.state !== 'proof')) {
-      this.close(1002, 'Unexpected Frame authentication response')
+      this.close(1002, 'Unexpected Wren authentication response')
       return
     }
 
@@ -115,10 +115,10 @@ class AuthenticatedSocket {
       if (parsed.code === 'unsupported-version') {
         this.fail(
           'unsupported-version',
-          'Frame and its Companion extension use incompatible protocols'
+          'Wren and its Companion extension use incompatible protocols'
         )
       } else {
-        this.close(1002, 'Invalid Frame authentication response')
+        this.close(1002, 'Invalid Wren authentication response')
       }
       return
     }
@@ -144,7 +144,7 @@ class AuthenticatedSocket {
             this.now()
           )
         ) {
-          this.close(1002, 'Frame authentication challenge mismatch')
+          this.close(1002, 'Wren authentication challenge mismatch')
           return
         }
         const code = await pairingCode(message, this.cryptoApi.subtle)
@@ -172,7 +172,7 @@ class AuthenticatedSocket {
         return
       }
       if (message.step !== 'authenticated' || message.fingerprint !== this.credential.fingerprint) {
-        this.close(1002, 'Frame authentication result mismatch')
+        this.close(1002, 'Wren authentication result mismatch')
         return
       }
 
@@ -195,11 +195,11 @@ class AuthenticatedSocket {
     if (this.state === 'closed' || this.state === 'closing') return
     this.failed = true
     this.onStatus({ status: 'error', code, message })
-    this.close(1008, 'Frame authentication failed')
+    this.close(1008, 'Wren authentication failed')
   }
 
   send(value) {
-    if (this.readyState !== OPEN) throw new Error('Frame socket is not authenticated')
+    if (this.readyState !== OPEN) throw new Error('Wren socket is not authenticated')
     this.socket.send(value)
   }
 
@@ -228,7 +228,7 @@ class AuthenticatedSocket {
     this.clearDeadline()
     this.deadline = this.setTimer(() => {
       this.deadline = undefined
-      this.fail('authentication-timeout', 'Frame authentication timed out')
+      this.fail('authentication-timeout', 'Wren authentication timed out')
     }, delay)
   }
 

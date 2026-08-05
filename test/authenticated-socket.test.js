@@ -163,7 +163,7 @@ test('fails closed on a substituted challenge or explicit desktop denial', async
     expiresAt: 61_000
   })
   await flush()
-  assert.deepEqual(substituted.raw.closeArgs, [1002, 'Frame authentication challenge mismatch'])
+  assert.deepEqual(substituted.raw.closeArgs, [1002, 'Wren authentication challenge mismatch'])
 
   const denied = await setup()
   denied.raw.message({
@@ -174,7 +174,7 @@ test('fails closed on a substituted challenge or explicit desktop denial', async
     message: 'Frame Companion pairing was denied'
   })
   await flush()
-  assert.deepEqual(denied.raw.closeArgs, [1008, 'Frame authentication failed'])
+  assert.deepEqual(denied.raw.closeArgs, [1008, 'Wren authentication failed'])
   assert.equal(denied.statuses.at(-1).code, 'denied')
 })
 
@@ -198,7 +198,7 @@ test('cancels asynchronous authentication and bounds a stalled desktop', async (
   await waitFor(() => raw.sent.length === 1)
   assert.equal([...timers.values()][0].delay, 10_000)
   ;[...timers.values()][0].callback()
-  assert.deepEqual(raw.closeArgs, [1008, 'Frame authentication failed'])
+  assert.deepEqual(raw.closeArgs, [1008, 'Wren authentication failed'])
 
   const sent = raw.sent.length
   await flush()

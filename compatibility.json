@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "desktop": {
-    "repository": "https://github.com/jorphex/frame",
+    "repository": "https://github.com/jorphex/wren",
     "branch": "main",
     "minimumCommit": "1b956a427cf5a9d97ecfe386069021f9807a5910"
   },

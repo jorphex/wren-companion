@@ -24,7 +24,7 @@ let authRecoveryPending = false
 let credentialRotation
 
 const extensionIdentity = deriveExtensionIdentity(chrome.runtime.getURL(''))
-if (!extensionIdentity) throw new Error('Unsupported Frame Companion extension identity')
+if (!extensionIdentity) throw new Error('Unsupported Wren Companion extension identity')
 const credentialStore = new CredentialStore({ storage: new IndexedDbCredentialStorage() })
 
 const frameState = {

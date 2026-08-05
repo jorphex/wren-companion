@@ -10,7 +10,7 @@ const packageJson = JSON.parse(await readFile(new URL('../package.json', import.
 const packageLock = await readFile(new URL('../package-lock.json', import.meta.url))
 const path =
   process.argv[2] ||
-  new URL(`../artifacts/frame-companion-${packageJson.version}.cdx.json`, import.meta.url).pathname
+  new URL(`../artifacts/wren-companion-${packageJson.version}.cdx.json`, import.meta.url).pathname
 const sbom = JSON.parse(await readFile(path, 'utf8'))
 if (
   sbom.bomFormat !== 'CycloneDX' ||

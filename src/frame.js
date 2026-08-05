@@ -51,6 +51,7 @@ if (appearAsMetaMask) {
   provider._metamask = Object.freeze({ isUnlocked: async () => true })
 } else {
   provider.isFrame = true
+  provider.isWren = true
 }
 provider.setMaxListeners(100)
 

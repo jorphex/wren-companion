@@ -121,7 +121,7 @@ function handlePageMessage(event) {
   if (!port) {
     postToPage({
       type: 'rpc',
-      payload: errorResponse(parsed.value.id, 4900, 'Frame extension unavailable')
+      payload: errorResponse(parsed.value.id, 4900, 'Wren Companion unavailable')
     })
     return
   }
@@ -132,7 +132,7 @@ function handlePageMessage(event) {
     port = undefined
     postToPage({
       type: 'rpc',
-      payload: errorResponse(parsed.value.id, 4900, 'Frame extension unavailable')
+      payload: errorResponse(parsed.value.id, 4900, 'Wren Companion unavailable')
     })
     scheduleReconnect()
   }

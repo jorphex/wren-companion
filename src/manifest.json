@@ -1,15 +1,15 @@
 {
-  "name": "Frame Community Companion",
-  "version": "0.13.1",
+  "name": "Wren Companion",
+  "version": "0.14.0",
   "manifest_version": 3,
   "minimum_chrome_version": "116",
-  "description": "Community-maintained companion connecting browser dapps to the Jorphex Frame desktop wallet.",
-  "homepage_url": "https://github.com/jorphex/frame-extension",
+  "description": "Connects browser-based Ethereum and EVM dapps to the Wren desktop wallet.",
+  "homepage_url": "https://github.com/jorphex/wren-companion",
   "background": {
     "service_worker": "index.js"
   },
   "action": {
-    "default_title": "Frame Community Companion",
+    "default_title": "Wren Companion",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -35,7 +35,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "{53cfd564-e246-4c76-808c-8648768988d5}",
+      "id": "{645ed7c6-d25f-4256-b29a-10e1e0633cf5}",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": ["none"]

@@ -1,4 +1,4 @@
-const FRAME_RDNS = 'sh.frame'
+const WREN_RDNS = 'io.github.jorphex.wren'
 
 let provider
 let account
@@ -45,7 +45,7 @@ function updateControls() {
   elements.typed.disabled = !connected
   elements.transaction.disabled = !(
     connected &&
-    globalThis.FrameQualificationTestnets.get(chainId) &&
+    globalThis.WrenQualificationTestnets.get(chainId) &&
     elements.confirmation.checked
   )
   elements.account.textContent = account || 'not connected'
@@ -53,7 +53,7 @@ function updateControls() {
 }
 
 async function refresh() {
-  if (!provider) throw new Error('Frame provider has not been discovered')
+  if (!provider) throw new Error('Wren provider has not been discovered')
   const [accounts, reportedChain] = await Promise.all([
     provider.request({ method: 'eth_accounts' }),
     provider.request({ method: 'eth_chainId' })
@@ -65,13 +65,13 @@ async function refresh() {
 }
 
 function attachProvider(detail) {
-  if (provider || detail?.info?.rdns !== FRAME_RDNS || !detail.provider) return
+  if (provider || detail?.info?.rdns !== WREN_RDNS || !detail.provider) return
   provider = detail.provider
   elements.discovery.textContent = `${detail.info.name} (${detail.info.uuid})`
-  elements.transport.textContent = provider.isConnected?.() ? 'connected' : 'awaiting Frame'
+  elements.transport.textContent = provider.isConnected?.() ? 'connected' : 'awaiting Wren'
   elements.legacy.textContent =
     window.ethereum === provider
-      ? 'Frame owns window.ethereum'
+      ? 'Wren owns window.ethereum'
       : window.ethereum
         ? 'another provider retained'
         : 'not installed'
@@ -110,7 +110,7 @@ async function run(action) {
     elements.log.replaceChildren()
     return
   }
-  if (!provider) throw new Error('Frame provider has not been discovered')
+  if (!provider) throw new Error('Wren provider has not been discovered')
 
   if (action === 'connect') {
     const accounts = await provider.request({ method: 'eth_requestAccounts' })
@@ -123,7 +123,7 @@ async function run(action) {
   if (!account) throw new Error('Connect a disposable account first')
 
   if (action === 'personal') {
-    const message = `Frame release qualification\nOrigin: ${location.origin}\nChain: ${chainId}`
+    const message = `Wren release qualification\nOrigin: ${location.origin}\nChain: ${chainId}`
     const encoded = `0x${[...new TextEncoder().encode(message)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')}`
@@ -136,8 +136,8 @@ async function run(action) {
   }
   if (action === 'typed') {
     const typedData = {
-      domain: { name: 'Frame qualification', version: '1', chainId },
-      message: { account, statement: 'I am testing a disposable Frame release candidate.' },
+      domain: { name: 'Wren qualification', version: '1', chainId },
+      message: { account, statement: 'I am testing a disposable Wren release candidate.' },
       primaryType: 'Qualification',
       types: {
         EIP712Domain: [
@@ -159,7 +159,7 @@ async function run(action) {
     return
   }
   if (action === 'transaction') {
-    const testnet = globalThis.FrameQualificationTestnets.get(chainId)
+    const testnet = globalThis.WrenQualificationTestnets.get(chainId)
     if (!testnet || !elements.confirmation.checked) {
       throw new Error(
         'An approved testnet and explicit disposable-account confirmation are required'
@@ -185,7 +185,7 @@ elements.confirmation.addEventListener('change', updateControls)
 window.dispatchEvent(new Event('eip6963:requestProvider'))
 setTimeout(() => {
   if (!provider) {
-    elements.discovery.textContent = 'Frame not announced'
-    record('Discovery', 'No sh.frame provider announced', 'error')
+    elements.discovery.textContent = 'Wren not announced'
+    record('Discovery', 'No Wren provider announced', 'error')
   }
 }, 1500)

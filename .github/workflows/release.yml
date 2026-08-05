@@ -99,7 +99,7 @@ jobs:
           subject-path: |
             artifacts/*-chrome.zip
             artifacts/*-firefox.zip
-          sbom-path: artifacts/frame-companion-${{ steps.release.outputs.version }}.cdx.json
+          sbom-path: artifacts/wren-companion-${{ steps.release.outputs.version }}.cdx.json
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}

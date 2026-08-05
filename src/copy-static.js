@@ -4,7 +4,7 @@ const path = require('path')
 const output = path.join(__dirname, '../dist')
 
 mkdirSync(output, { recursive: true })
-for (const file of ['manifest.json', 'settings.html', 'icon.png', 'FrameLogo.png']) {
+for (const file of ['manifest.json', 'settings.html', 'icon.png']) {
   copyFileSync(path.join(__dirname, file), path.join(output, file))
 }
 

@@ -105,7 +105,7 @@ test('closes on malformed responses and schedules a bounded reconnect', async ()
   const pending = client.request('web3_clientVersion')
   sockets[0].emit('message', { data: '{bad json' })
 
-  assert.deepEqual(sockets[0].closeArgs, [1002, 'Invalid Frame control response'])
+  assert.deepEqual(sockets[0].closeArgs, [1002, 'Invalid Wren control response'])
   await assert.rejects(pending, (error) => error.code === 4900)
   assert.equal(closed.length, 1)
   const reconnect = [...timers.values()][0]
@@ -121,7 +121,7 @@ test('rejects and reconnects when a browser socket send fails', async () => {
   sockets[0].failSend = true
 
   await assert.rejects(client.request('web3_clientVersion'), (error) => error.code === 4900)
-  assert.deepEqual(sockets[0].closeArgs, [1011, 'Frame request failed'])
+  assert.deepEqual(sockets[0].closeArgs, [1011, 'Wren request failed'])
   assert.equal(timers.size, 1)
 })
 
@@ -168,5 +168,5 @@ test('keeps sending bounded liveness requests and closes a stalled peer', () => 
   )
 
   ;[...timers.values()][0].callback()
-  assert.deepEqual(sockets[0].closeArgs, [1011, 'Frame keepalive timed out'])
+  assert.deepEqual(sockets[0].closeArgs, [1011, 'Wren keepalive timed out'])
 })

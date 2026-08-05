@@ -43,6 +43,6 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(requestedPort, '127.0.0.1', () => {
-  console.log(`Frame qualification page: http://127.0.0.1:${requestedPort}/`)
+  console.log(`Wren qualification page: http://127.0.0.1:${requestedPort}/`)
   console.log('Press Ctrl+C to stop.')
 })

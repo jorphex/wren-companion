@@ -39,8 +39,7 @@ const packageFile = JSON.parse(await readFile(new URL('../package.json', import.
 if (manifest.manifest_version !== 3) throw new Error('Extension artifact must use Manifest V3')
 if (manifest.version !== packageFile.version)
   throw new Error('Manifest and package versions differ')
-if (manifest.name !== 'Frame Community Companion')
-  throw new Error('Store package must use the community fork identity')
+if (manifest.name !== 'Wren Companion') throw new Error('Store package must use the Wren identity')
 const validBackground =
   browser === 'chrome'
     ? manifest.background?.service_worker === 'index.js' && !manifest.background?.scripts
@@ -86,10 +85,10 @@ if (manifest.icons?.['128'] !== 'icons/icon128.png') {
   throw new Error('Chrome Web Store icon is missing')
 }
 if (!manifest.content_security_policy?.extension_pages?.includes('ws://127.0.0.1:1248')) {
-  throw new Error('Extension CSP must restrict Frame transport to loopback')
+  throw new Error('Extension CSP must restrict Wren transport to loopback')
 }
 if (
-  manifest.browser_specific_settings?.gecko?.id !== '{53cfd564-e246-4c76-808c-8648768988d5}' ||
+  manifest.browser_specific_settings?.gecko?.id !== '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}' ||
   manifest.browser_specific_settings?.gecko?.strict_min_version !== '142.0' ||
   JSON.stringify(manifest.browser_specific_settings?.gecko?.data_collection_permissions) !==
     JSON.stringify({ required: ['none'] })

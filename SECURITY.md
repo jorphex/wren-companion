@@ -6,12 +6,12 @@ Data handling and retention are documented separately in the
 ## Supported Version
 
 Only the newest release published by
-[`jorphex/frame-extension`](https://github.com/jorphex/frame-extension/releases)
+[`jorphex/wren-companion`](https://github.com/jorphex/wren-companion/releases)
 is considered for security fixes. Development branches and locally built
 artifacts are unsupported previews.
 
 This companion is not a wallet or signer. It injects an EIP-1193 provider into
-web pages and routes requests to the separately installed Frame desktop wallet.
+web pages and routes requests to the separately installed Wren desktop wallet.
 It never needs a seed phrase, private key, or hardware-wallet PIN. Do not enter
 those secrets into the extension or a dapp page.
 
@@ -22,8 +22,8 @@ those secrets into the extension or a dapp page.
 - Each document owns an isolated, bounded localhost WebSocket and receives only
   its own responses, events, and subscriptions.
 - A nonextractable per-installation P-256 credential authenticates Companion to
-  Frame after explicit six-digit pairing approval.
-- Protocol version 2 does not authenticate Frame or the localhost endpoint back
+  Wren after explicit six-digit pairing approval.
+- Protocol version 2 does not authenticate Wren or the localhost endpoint back
   to Companion. A same-user process that owns or intercepts port 1248 remains in
   the trusted computing base.
 - Web-page code shares the page's provider environment and can replace or wrap
@@ -33,8 +33,8 @@ those secrets into the extension or a dapp page.
   host compromise, dependency compromise, and unreviewed binaries are outside
   the guarantees of the pairing protocol.
 
-Frame remains the approval, permission, account, signing, and broadcast
-authority. Review every request in Frame and on the hardware device where
+Wren remains the approval, permission, account, signing, and broadcast
+authority. Review every request in Wren and on the hardware device where
 available.
 
 ## Reporting

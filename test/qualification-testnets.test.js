@@ -7,7 +7,7 @@ const vm = require('node:vm')
 const source = fs.readFileSync(path.join(__dirname, '..', 'qualification', 'testnets.js'), 'utf8')
 const context = {}
 vm.runInNewContext(source, context)
-const { all: qualificationTestnets, get: qualificationTestnet } = context.FrameQualificationTestnets
+const { all: qualificationTestnets, get: qualificationTestnet } = context.WrenQualificationTestnets
 
 test('qualification transaction allowlist contains only approved testnets', () => {
   assert.deepEqual(Object.keys(qualificationTestnets), ['0xaa36a7', '0x14a34'])

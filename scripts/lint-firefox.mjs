@@ -6,7 +6,7 @@ import { createFirefoxManifest } from './browser-manifests.mjs'
 
 const root = resolve(new URL('..', import.meta.url).pathname)
 const source = join(root, 'dist')
-const temporary = await mkdtemp(join(tmpdir(), 'frame-companion-firefox-lint-'))
+const temporary = await mkdtemp(join(tmpdir(), 'wren-companion-firefox-lint-'))
 
 try {
   await cp(source, temporary, { recursive: true })

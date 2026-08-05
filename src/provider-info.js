@@ -1,6 +1,6 @@
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
-const FRAME_ICON =
-  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDcuNSIgaGVpZ2h0PSIzMDYiIHZpZXdCb3g9IjAgMCAzMDcuNSAzMDYiPgogIDxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMyODI3MmEiPjwvcmVjdD4KICA8cGF0aCBmaWxsPScjMDBkMmJlJyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3NywgNzYuNSkiIGQ9Ik0xNDUuMSw3NS42VjE3LjZjMC01LjEtNC4yLTkuMy05LjMtOS4zaC01OC4xYy0uNiwwLTEuMS0uMi0xLjYtLjZsLTctN2MtLjQtLjQtMS0uNy0xLjYtLjdIOS4zQzQuMiwwLDAsNC4xLDAsOS4zaDB2NThjMCwuNi4yLDEuMS42LDEuNmw3LDdjLjQuNC43LDEsLjcsMS42djU4YzAsNS4xLDQuMiw5LjMsOS4zLDkuM2g1OC4yYy42LDAsMS4xLjIsMS42LjZsNyw3Yy40LjQsMSwuNiwxLjYuNmg1OC4yYzUuMSwwLDkuMy00LjEsOS4zLTkuM2gwdi01OGMwLS42LS4yLTEuMS0uNi0xLjZsLTctN2MtLjUtLjQtLjgtLjktLjgtMS41Wk0xMDUuNiwxMDYuNmgtNTcuN2MtLjcsMC0xLjMtLjYtMS4zLTEuM3YtNTcuNmMwLS43LjYtMS4zLDEuMy0xLjNoNTcuN2MuNywwLDEuMy42LDEuMywxLjN2NTcuNmMuMS43LS41LDEuMy0xLjMsMS4zWiIvPgo8L3N2Zz4K'
+const WREN_ICON =
+  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgdmlld0JveD0iMCAwIDk2IDk2Ij48cmVjdIHdpZHRoPSI5NiIgaGVpZ2h0PSI5NiIgcng9IjIwIiBmaWxsPSIjMTExNTEzIi8+PHBhdGggZmlsbD0iI0E2OEE2MSIgZD0iTTE2IDU1YzEyLTIxIDMxLTI3IDQ3LTEyTDgxIDI0bC03IDIxIDE0LTEwLTE2IDIzQzYwIDc2IDM1IDc3IDE2IDU1WiIvPjxwYXRoIGZpbGw9IiNCNzlBNzAiIGQ9Im02MyA0MyAxOC0xOS03IDIxIDE0LTEwLTE2IDIzWiIvPjwvc3ZnPg=='
 
 function randomUuid(cryptoApi = globalThis.crypto) {
   if (typeof cryptoApi?.randomUUID === 'function') return cryptoApi.randomUUID()
@@ -18,8 +18,8 @@ function randomUuid(cryptoApi = globalThis.crypto) {
 
 function createProviderInfo(uuidFactory = randomUuid) {
   const uuid = uuidFactory()
-  if (!UUID_V4.test(uuid)) throw new Error('Unable to create Frame provider UUID')
-  return Object.freeze({ uuid, name: 'Frame', icon: FRAME_ICON, rdns: 'sh.frame' })
+  if (!UUID_V4.test(uuid)) throw new Error('Unable to create Wren provider UUID')
+  return Object.freeze({ uuid, name: 'Wren', icon: WREN_ICON, rdns: 'io.github.jorphex.wren' })
 }
 
 module.exports = { createProviderInfo, randomUuid }
