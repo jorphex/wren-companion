@@ -495,7 +495,7 @@ class _Settings extends React.Component {
         <ClusterRow>
           <ClusterValue>
             <div style={{ paddingBottom: '32px' }}>
-              <NotConnected>Unable to connect to Wren</NotConnected>
+              <NotConnected>Unable to connect to desktop wallet</NotConnected>
               <CannotConnectSub>Make sure the Wren desktop app is running</CannotConnectSub>
               <CannotConnectSub>on your machine or download it below</CannotConnectSub>
             </div>
@@ -556,9 +556,9 @@ class _Settings extends React.Component {
               <img src={isConnected ? '../icons/icon96good.png' : '../icons/icon96moon.png'} />
             </LogoWrap>
             {isConnected ? (
-              <FrameConnected style={{ color: 'var(--good)' }}>Wren Connected</FrameConnected>
+              <FrameConnected style={{ color: 'var(--good)' }}>Desktop Connected</FrameConnected>
             ) : (
-              <FrameConnected style={{ color: 'var(--moon)' }}>Wren Disconnected</FrameConnected>
+              <FrameConnected style={{ color: 'var(--moon)' }}>Desktop Disconnected</FrameConnected>
             )}
             <SummonFrameButton>
               <svg viewBox="0 0 512 512">

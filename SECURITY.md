@@ -24,8 +24,9 @@ those secrets into the extension or a dapp page.
 - A nonextractable per-installation P-256 credential authenticates Companion to
   Wren after explicit six-digit pairing approval.
 - Protocol version 2 does not authenticate Wren or the localhost endpoint back
-  to Companion. A same-user process that owns or intercepts port 1248 remains in
-  the trusted computing base.
+  to Companion. The settings UI therefore reports a compatible desktop
+  connection rather than asserting Wren server identity. A same-user process
+  that owns or intercepts port 1248 remains in the trusted computing base.
 - Web-page code shares the page's provider environment and can replace or wrap
   injected JavaScript. The extension does not treat page code as trusted or
   store wallet authority in that bridge.
