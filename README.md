@@ -12,7 +12,7 @@ Wren Companion connects browser dapps to the
 original [Frame extension](https://github.com/frame-labs/frame-extension) under
 GPL-3.0 and is not affiliated with or endorsed by Frame Labs.
 
-Companion `0.14.0` speaks authenticated protocol 2. It supports the minimum
+Companion `0.1.0` speaks authenticated protocol 2. It supports the minimum
 desktop commit recorded in `compatibility.json` and later Wren releases that
 retain protocol 2; desktop releases do not require new companion submissions.
 

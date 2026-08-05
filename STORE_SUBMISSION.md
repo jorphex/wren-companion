@@ -1,6 +1,6 @@
 # Browser Store Submission
 
-Submit Wren Companion `0.14.0` independently of Wren desktop releases. Reuse this
+Submit Wren Companion `0.1.0` independently of Wren desktop releases. Reuse this
 store version with future desktop releases while authenticated protocol 2
 remains compatible.
 
@@ -13,9 +13,9 @@ npm run package:browsers
 npm run package:verify
 ```
 
-- Chrome: `artifacts/wren-companion-0.14.0-chrome.zip`
-- Firefox: `artifacts/wren-companion-0.14.0-firefox.zip`
-- Firefox reviewer source: `artifacts/wren-companion-0.14.0-source.zip`
+- Chrome: `artifacts/wren-companion-0.1.0-chrome.zip`
+- Firefox: `artifacts/wren-companion-0.1.0-firefox.zip`
+- Firefox reviewer source: `artifacts/wren-companion-0.1.0-source.zip`
 - Checksums: `artifacts/SHA256SUMS`
 
 Do not interchange the browser ZIPs. Do not upload the reviewer-source ZIP as

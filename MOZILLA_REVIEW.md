@@ -34,7 +34,7 @@ submitted ZIP:
 
 ```bash
 mkdir submitted
-unzip wren-companion-0.14.0-firefox.zip -d submitted
+unzip wren-companion-0.1.0-firefox.zip -d submitted
 diff -qr dist-firefox submitted
 ```
 
