@@ -8,7 +8,7 @@ compatible desktop commit in `compatibility.json`. It remains compatible with
 later desktop releases while they retain that protocol; a desktop UI, signer,
 or wallet-feature release does not require another browser-store submission.
 
-The fork produces separate Chrome and Firefox Manifest V3 ZIP files. The
+The project produces separate Chrome and Firefox Manifest V3 ZIP files. The
 Firefox package has a unique add-on ID and matching reviewer-source ZIP. It does
 not claim or update the existing upstream Frame store listings.
 

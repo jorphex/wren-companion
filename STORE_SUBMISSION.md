@@ -105,7 +105,7 @@ checked before the listing becomes public.
 ## Mozilla Add-ons
 
 In the Add-ons Developer Hub, submit a new add-on **On this site** and upload the
-Firefox ZIP. The manifest's UUID is unique to this fork. Select desktop Firefox,
+Firefox ZIP. The manifest's UUID is unique to Wren Companion. Select desktop Firefox,
 mark the add-on experimental while the desktop wallet is still a preview, and
 indicate that additional free software (Wren desktop) is required.
 
