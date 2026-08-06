@@ -60,6 +60,6 @@ const detail = Object.freeze({ info, provider })
 const announce = () => window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail }))
 
 window.addEventListener('eip6963:requestProvider', announce)
-announce()
 installLegacyProvider(window, provider)
 installWeb3Shim(provider, appearAsMetaMask)
+announce()
