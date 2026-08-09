@@ -90,11 +90,17 @@ async function toggleLocalSetting(key) {
 }
 
 const SettingsScroll = styled.main`
+  display: flex;
+  flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
   box-sizing: border-box;
   max-height: min(600px, 100vh);
   background: var(--wren-bg-canvas);
+
+  > * {
+    flex: none;
+  }
 `
 
 const DesktopStatus = styled.span`
@@ -374,6 +380,34 @@ const CurrentOriginTitle = styled.div`
   }
 `
 
+const MainPanel = styled(ClusterBoxMain)`
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  /* Preserve origin (50px), one chain row (40px), and identity control (56px + divider). */
+  min-height: ${(props) => {
+    if (props.$chainCount > 0) return '147px'
+    if (props.$chainCount === 0) return '106px'
+    return '0'
+  }};
+
+  > * {
+    flex: none;
+  }
+`
+
+const ChainCluster = styled(Cluster)`
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+
+  > * {
+    flex: none;
+  }
+`
+
 const ChainButtonIcon = styled.div`
   width: 10px;
   height: 10px;
@@ -385,11 +419,12 @@ const ChainButtonIcon = styled.div`
 `
 
 const ChainLedger = styled.div`
-  max-height: ${(props) => (props.$scrollable ? '225px' : 'none')};
+  flex: 0 1 auto;
+  min-height: 40px;
   overflow-x: hidden;
-  overflow-y: ${(props) => (props.$scrollable ? 'auto' : 'visible')};
+  overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: ${(props) => (props.$scrollable ? 'stable' : 'auto')};
+  scrollbar-gutter: stable;
 `
 
 const ChainButtonLabel = styled.div`
@@ -419,6 +454,7 @@ const ChainButtonControl = styled.button`
   cursor: pointer;
   text-align: left;
   transition: background-color var(--wren-motion-fast) var(--wren-ease);
+  scroll-margin-block: 4px;
 
   &:hover:not(:disabled) {
     color: var(--wren-text-primary);
@@ -454,11 +490,18 @@ const chainConnected = ({ connected }) => connected === undefined || connected
 const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith('https://')
 
 const ChainButton = ({ chain, selected }) => {
+  const controlRef = React.useRef(null)
   const { chainId, name } = chain
   const isSelectable = chainConnected(chain)
   const colorToken = getChainColorToken(chainId, chain.isTestnet === true)
+
+  React.useEffect(() => {
+    if (selected) controlRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
+
   return (
     <ChainButtonControl
+      ref={controlRef}
       type="button"
       $selected={selected}
       disabled={!isSelectable}
@@ -703,7 +746,7 @@ class _Settings extends React.Component {
     const currentChain = this.store('currentChain')
 
     return (
-      <ChainLedger $scrollable={chains.length > 6}>
+      <ChainLedger>
         {chains.map((chain) => (
           <ClusterRow key={chain.chainId}>
             <ChainButton chain={chain} selected={chain.chainId === parseInt(currentChain, 16)} />
@@ -737,6 +780,7 @@ class _Settings extends React.Component {
 
   renderMainPanel() {
     const isConnected = this.store('frameConnected')
+    const availableChains = this.store('availableChains') || []
     const {
       tab: { url },
       isSupportedTab
@@ -744,31 +788,29 @@ class _Settings extends React.Component {
     const { protocol, origin } = parseOrigin(url)
 
     if (!isConnected) {
-      return <ClusterBoxMain>{this.notConnected()}</ClusterBoxMain>
+      return <MainPanel>{this.notConnected()}</MainPanel>
     }
 
     if (!isSupportedTab) {
-      return <ClusterBoxMain>{this.unsupportedTab(protocol + origin)}</ClusterBoxMain>
+      return <MainPanel>{this.unsupportedTab(protocol + origin)}</MainPanel>
     }
 
     return (
-      <>
-        <ClusterBoxMain>
-          <CurrentOriginTitle title={origin}>
-            <svg viewBox="0 0 512 512">
-              <path
-                fill="currentColor"
-                d="M448 32C483.3 32 512 60.65 512 96V416C512 451.3 483.3 480 448 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H448zM96 96C78.33 96 64 110.3 64 128C64 145.7 78.33 160 96 160H416C433.7 160 448 145.7 448 128C448 110.3 433.7 96 416 96H96z"
-              />
-            </svg>
-            <span>{origin}</span>
-          </CurrentOriginTitle>
-          <Cluster>
-            {this.store('availableChains').length ? <>{this.chainSelect()}</> : null}
-            {this.appearAsMMToggle()}
-          </Cluster>
-        </ClusterBoxMain>
-      </>
+      <MainPanel $chainCount={availableChains.length}>
+        <CurrentOriginTitle title={origin}>
+          <svg viewBox="0 0 512 512">
+            <path
+              fill="currentColor"
+              d="M448 32C483.3 32 512 60.65 512 96V416C512 451.3 483.3 480 448 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H448zM96 96C78.33 96 64 110.3 64 128C64 145.7 78.33 160 96 160H416C433.7 160 448 145.7 448 128C448 110.3 433.7 96 416 96H96z"
+            />
+          </svg>
+          <span>{origin}</span>
+        </CurrentOriginTitle>
+        <ChainCluster>
+          {availableChains.length ? this.chainSelect() : null}
+          {this.appearAsMMToggle()}
+        </ChainCluster>
+      </MainPanel>
     )
   }
 
