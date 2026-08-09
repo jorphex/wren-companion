@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import styled from 'styled-components'
 
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
+import { getChainColorToken } from './chain-identity.mjs'
 import { parseAuthenticationState, toRpcChainId } from './protocol.mjs'
 
 const APPEAR_AS_MM = '__frameAppearAsMM__'
@@ -93,7 +94,7 @@ const SettingsScroll = styled.main`
   overflow-y: auto;
   box-sizing: border-box;
   max-height: min(600px, 100vh);
-  background: var(--wren-bg-panel);
+  background: var(--wren-surface-card);
 `
 
 const DesktopStatus = styled.span`
@@ -196,10 +197,10 @@ const IdentityButton = styled.button`
   min-width: 72px;
   min-height: 32px;
   padding: 0 10px;
-  border: 1px solid ${(props) => (props.$selected ? 'var(--wren-border-strong)' : 'transparent')};
+  border: 1px solid ${(props) => (props.$selected ? 'var(--wren-accent-primary)' : 'transparent')};
   border-radius: 3px;
   color: ${(props) => (props.$selected ? 'var(--wren-text-primary)' : 'var(--wren-text-tertiary)')};
-  background: ${(props) => (props.$selected ? 'var(--wren-bg-elevated)' : 'transparent')};
+  background: ${(props) => (props.$selected ? 'var(--wren-accent-primary-soft)' : 'transparent')};
   box-shadow: ${(props) => (props.$selected ? 'var(--wren-control-shadow)' : 'none')};
   cursor: pointer;
   font-size: 12px;
@@ -377,11 +378,18 @@ const ChainButtonIcon = styled.div`
   width: 10px;
   height: 10px;
   flex: none;
-  background: ${(props) => (props.$selected ? 'var(--wren-success)' : 'transparent')};
+  background: var(${(props) => props.$colorToken});
   border-radius: 50%;
   box-sizing: border-box;
-  border: 1px solid
-    ${(props) => (props.$selected ? 'var(--wren-success)' : 'var(--wren-border-strong)')};
+  border: 1px solid color-mix(in srgb, var(${(props) => props.$colorToken}) 74%, white 26%);
+`
+
+const ChainLedger = styled.div`
+  max-height: ${(props) => (props.$scrollable ? '225px' : 'none')};
+  overflow-x: hidden;
+  overflow-y: ${(props) => (props.$scrollable ? 'auto' : 'visible')};
+  overscroll-behavior: contain;
+  scrollbar-gutter: ${(props) => (props.$scrollable ? 'stable' : 'auto')};
 `
 
 const ChainButtonLabel = styled.div`
@@ -448,6 +456,7 @@ const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith(
 const ChainButton = ({ chain, selected }) => {
   const { chainId, name } = chain
   const isSelectable = chainConnected(chain)
+  const colorToken = getChainColorToken(chainId, chain.isTestnet === true)
   return (
     <ChainButtonControl
       type="button"
@@ -462,7 +471,7 @@ const ChainButton = ({ chain, selected }) => {
         }
       }}
     >
-      <ChainButtonIcon $selected={selected} />
+      <ChainButtonIcon $colorToken={colorToken} />
       <ChainButtonLabel>{name}</ChainButtonLabel>
     </ChainButtonControl>
   )
@@ -693,11 +702,15 @@ class _Settings extends React.Component {
     const chains = this.store('availableChains') || []
     const currentChain = this.store('currentChain')
 
-    return chains.map((chain) => (
-      <ClusterRow key={chain.chainId}>
-        <ChainButton chain={chain} selected={chain.chainId === parseInt(currentChain, 16)} />
-      </ClusterRow>
-    ))
+    return (
+      <ChainLedger $scrollable={chains.length > 6}>
+        {chains.map((chain) => (
+          <ClusterRow key={chain.chainId}>
+            <ChainButton chain={chain} selected={chain.chainId === parseInt(currentChain, 16)} />
+          </ClusterRow>
+        ))}
+      </ChainLedger>
+    )
   }
 
   currentChain() {

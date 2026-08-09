@@ -3,6 +3,7 @@
   --wren-font-ui: 'Recursive', system-ui, sans-serif;
   --wren-font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --wren-bg-canvas: #090c0a;
+  --wren-bg-subtle: #0e1210;
   --wren-bg-elevated: #141a16;
   --wren-bg-panel: #171d19;
   --wren-surface-card: #0f1410;
@@ -20,6 +21,7 @@
   --wren-accent-primary: #a68a61;
   --wren-accent-primary-hover: #b79a70;
   --wren-accent-primary-active: #947953;
+  --wren-accent-primary-soft: #29231b;
   --wren-ledger-selected: rgba(166, 138, 97, 0.075);
   --wren-accent: var(--wren-accent-primary);
   --wren-accent-hover: var(--wren-accent-primary-hover);
@@ -29,6 +31,15 @@
   --wren-danger: #df8377;
   --wren-danger-soft: #2a1716;
   --wren-focus: #bfa77e;
+  --wren-chain-ethereum: #7185c2;
+  --wren-chain-optimism: #bd5d62;
+  --wren-chain-gnosis: #5f806f;
+  --wren-chain-polygon: #8872b8;
+  --wren-chain-base: #5877c6;
+  --wren-chain-arbitrum: #5689ba;
+  --wren-chain-katana: #9b8b61;
+  --wren-chain-testnet: #b39a64;
+  --wren-chain-custom: #707a72;
   --wren-radius-sm: 5px;
   --wren-radius-md: 8px;
   --wren-motion-fast: 120ms;
