@@ -25,7 +25,7 @@ nvm install
 nvm use
 npm install --global npm@11.12.0
 npm run setup:ci
-npm audit --audit-level=high
+npm run audit:release
 npm run package:browsers
 npm run package:verify
 ```
