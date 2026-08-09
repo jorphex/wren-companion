@@ -75,8 +75,8 @@ body {
 }
 
 body {
-  width: min(420px, 100vw);
-  min-width: min(320px, 100vw);
+  width: 420px;
+  min-width: 320px;
   color: var(--wren-text-primary);
   background: var(--wren-bg-canvas);
   font-size: 14px;
@@ -111,12 +111,6 @@ a:visited {
 ::-webkit-scrollbar-thumb {
   border-radius: 3px;
   background: var(--wren-border-default);
-}
-
-@media (max-width: 360px) {
-  body {
-    min-width: 0;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
