@@ -77,18 +77,11 @@ Privacy form answers:
   does not collect or receive them. Certify all applicable limited-use
   statements.
 
-Use `src/icons/icon128.png` as the provisional store icon. Do not publish the
-existing `store-assets` screenshots or promo tile: they document the historical
-Frame build and must be replaced with real Wren-branded captures before store
-submission. Capture these 1280x800 product states in this order:
-
-1. `store-assets/screenshot-connected-1280x800.png` — Companion connected to
-   Wren while available to a browser dapp.
-2. `store-assets/screenshot-pairing-1280x800.png` — matching six-digit approval
-   codes in Companion and Wren desktop.
-
-The public dapp in the first screenshot is shown only to demonstrate the
-companion in normal use. Do not reuse screenshots from the upstream listing.
+Use `src/icons/icon128.png` as the provisional store icon. The Wren-branded
+`store-assets/promo-440x280.png` is usable for submission. Connected and pairing
+screenshots are intentionally pending real paired Wren captures; do not publish
+historical Frame screenshots or reuse assets from the upstream listing. These
+assets have no continuity with the upstream listing.
 
 Test instructions for reviewers:
 
