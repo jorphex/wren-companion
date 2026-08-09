@@ -94,7 +94,7 @@ const SettingsScroll = styled.main`
   overflow-y: auto;
   box-sizing: border-box;
   max-height: min(600px, 100vh);
-  background: var(--wren-surface-card);
+  background: var(--wren-bg-canvas);
 `
 
 const DesktopStatus = styled.span`
@@ -189,7 +189,7 @@ const IdentityChoices = styled.div`
   gap: 2px;
   border: 1px solid var(--wren-border-subtle);
   border-radius: var(--wren-radius-sm);
-  background: var(--wren-bg-canvas);
+  background: var(--wren-surface-inset);
 `
 
 const IdentityButton = styled.button`
@@ -238,7 +238,7 @@ const PairingCode = styled.div`
   border: 1px solid var(--wren-border-default);
   border-radius: var(--wren-radius-sm);
   color: var(--wren-accent-hover);
-  background: var(--wren-bg-canvas);
+  background: var(--wren-surface-inset);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.38);
   font-family: var(--wren-font-mono);
   font-size: 28px;
