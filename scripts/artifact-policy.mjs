@@ -1,5 +1,8 @@
 export const extensionArtifactFiles = Object.freeze([
   'frame.js',
+  'fonts/Recursive/LICENSE.txt',
+  'fonts/Recursive/Recursive_VF_1.085.woff2',
+  'fonts/Recursive/SOURCE.txt',
   'icon.png',
   'icons/icon16.png',
   'icons/icon16good.png',

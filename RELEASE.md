@@ -49,11 +49,13 @@ not submit anything to a browser store.
 
 ## Manual Qualification
 
-Before GitHub or store publication, use disposable accounts:
+Before GitHub or store publication, use disposable accounts and browser
+profiles on an isolated display. Do not load qualification builds into a live
+daily-use profile or place test windows on the active desktop:
 
 1. Verify `SHA256SUMS` and GitHub attestations.
-2. Load the Chrome ZIP unpacked in current Chrome and the Firefox ZIP
-   temporarily in current Firefox.
+2. Load the Chrome ZIP unpacked in the current stable Chrome release and the Firefox ZIP
+   temporarily in the current stable Firefox release, using only those disposable profiles.
 3. Pair each clean browser profile with a protocol-2 Wren desktop and compare
    the six-digit code in both interfaces.
 4. Confirm EIP-6963 and legacy discovery, connection approval, account and

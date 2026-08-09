@@ -31,29 +31,6 @@ const actions = {
 
 const store = Restore.create(initialState, actions)
 
-const getScrollBarWidth = () => {
-  if (typeof document === 'undefined') return 0
-  const inner = document.createElement('p')
-  inner.style.width = '100%'
-  inner.style.height = '200px'
-  const outer = document.createElement('div')
-  outer.style.position = 'absolute'
-  outer.style.top = '0px'
-  outer.style.left = '0px'
-  outer.style.visibility = 'hidden'
-  outer.style.width = '200px'
-  outer.style.height = '150px'
-  outer.style.overflow = 'hidden'
-  outer.appendChild(inner)
-  document.body.appendChild(outer)
-  const w1 = inner.offsetWidth
-  outer.style.overflow = 'scroll'
-  let w2 = inner.offsetWidth
-  if (w1 === w2) w2 = outer.clientWidth
-  document.body.removeChild(outer)
-  return w1 - w2
-}
-
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
   return tabs[0]
@@ -111,234 +88,344 @@ async function toggleLocalSetting(key) {
   }
 }
 
-const SettingsScroll = styled.div`
+const SettingsScroll = styled.main`
   overflow-x: hidden;
-  overflow-y: scroll;
+  overflow-y: auto;
   box-sizing: border-box;
-  max-height: 580px;
-  margin-right: -${(props) => props.scrollBar || 0}px;
-  background: var(--ghostY);
-  margin: 10px;
-  border-radius: 30px;
+  max-height: min(600px, 100vh);
+  background: var(--wren-bg-panel);
 `
 
-const FrameConnected = styled.div`
-  font-size: 14px;
-  text-transform: uppercase;
-  font-weight: 600;
-  letter-spacing: 1px;
-  padding-left: 1px;
+const DesktopStatus = styled.span`
+  min-width: 0;
+  flex: 1 1 auto;
+  color: ${(props) => (props.$connected ? 'var(--wren-success)' : 'var(--wren-text-secondary)')};
+  font-size: 15px;
+  font-weight: 620;
+  text-align: left;
 `
 
 const LogoWrap = styled.div`
-  width: 80px;
-  height: 50px;
+  width: 30px;
+  height: 30px;
   display: flex;
   justify-content: center;
   align-items: center;
+  flex: none;
   box-sizing: border-box;
 
   img {
-    height: 20px;
+    width: 16px;
+    height: 16px;
   }
 `
 
-const SummonFrameButton = styled.div`
-  width: 80px;
-  height: 50px;
+const DesktopStatusControl = styled.button`
+  appearance: none;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 14px;
   display: flex;
-  justify-content: center;
+  gap: 10px;
   align-items: center;
+  border: 0;
+  color: var(--wren-text-secondary);
+  background: transparent;
   box-sizing: border-box;
+  cursor: ${(props) => (props.$connected ? 'pointer' : 'default')};
+  transition: background-color var(--wren-motion-fast) var(--wren-ease);
+
+  &:hover:not(:disabled) {
+    background: var(--wren-surface-hover);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--wren-surface-active);
+  }
+
+  &:disabled {
+    opacity: 1;
+  }
 
   svg {
-    height: 20px;
+    width: 15px;
+    height: 15px;
+    flex: none;
     transform: scaleX(-1);
   }
 `
 
 const AppearDescription = styled.div`
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 14px;
-  padding-left: 1px;
-  letter-spacing: 1px;
   display: flex;
-  justify-content: center;
+  min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
-  padding-left: 1px;
-  letter-spacing: 1px;
-  height: 50px;
+  gap: 9px;
+  color: var(--wren-text-secondary);
+  font-size: 13px;
+  font-weight: 520;
 
   svg {
+    width: 16px;
     height: 16px;
-    margin-right: 8px;
+    flex: none;
   }
 `
 
-const AppearToggle = styled.div`
-  position: relative;
-  height: 32px;
-  font-weight: 600;
+const IdentityRow = styled.div`
   display: flex;
-  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 9px 14px;
   align-items: center;
-  text-transform: uppercase;
-  cursor: pointer;
-  font-size: 12px;
-  overflow: hidden;
-  padding-left: 1px;
-  letter-spacing: 1px;
+  gap: 12px;
 `
 
-const NotConnected = styled.div`
-  padding: 32px;
+const IdentityChoices = styled.div`
   display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 18px;
+  flex: none;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--wren-border-subtle);
+  border-radius: var(--wren-radius-sm);
+  background: var(--wren-bg-canvas);
+`
+
+const IdentityButton = styled.button`
+  appearance: none;
+  min-width: 72px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid ${(props) => (props.$selected ? 'var(--wren-border-strong)' : 'transparent')};
+  border-radius: 3px;
+  color: ${(props) => (props.$selected ? 'var(--wren-text-primary)' : 'var(--wren-text-tertiary)')};
+  background: ${(props) => (props.$selected ? 'var(--wren-bg-elevated)' : 'transparent')};
+  box-shadow: ${(props) => (props.$selected ? 'var(--wren-control-shadow)' : 'none')};
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 580;
+  transition:
+    color var(--wren-motion-fast) var(--wren-ease),
+    background-color var(--wren-motion-fast) var(--wren-ease),
+    border-color var(--wren-motion-fast) var(--wren-ease);
+
+  &:hover {
+    color: var(--wren-text-primary);
+    background: var(--wren-surface-hover);
+  }
 `
 
 const PairingPanel = styled.div`
-  padding: 24px 28px;
+  width: 100%;
+  padding: 20px;
   text-align: center;
 `
 
-const PairingTitle = styled.div`
-  color: var(--moon);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+const PairingTitle = styled.h2`
+  margin: 0;
+  color: var(--wren-text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  font-variation-settings:
+    'CASL' 0.28,
+    'CRSV' 0;
 `
 
 const PairingCode = styled.div`
-  color: var(--good);
-  font-size: 34px;
-  font-weight: 700;
-  letter-spacing: 8px;
-  margin: 12px 0 8px 8px;
+  margin: 14px auto 10px;
+  padding: 8px 12px 9px;
+  border: 1px solid var(--wren-border-default);
+  border-radius: var(--wren-radius-sm);
+  color: var(--wren-accent-hover);
+  background: var(--wren-bg-canvas);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.38);
+  font-family: var(--wren-font-mono);
+  font-size: 28px;
+  font-weight: 580;
+  letter-spacing: 0.18em;
 `
 
 const PairingDetail = styled.div`
+  color: var(--wren-text-secondary);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 `
 
 const PairingButton = styled.button`
   appearance: none;
-  background: transparent;
-  border: 0;
-  color: ${(props) => (props.confirm ? 'var(--bad)' : 'var(--moon)')};
+  background: ${(props) => (props.$confirm ? 'var(--wren-danger-soft)' : 'transparent')};
+  background-image: ${(props) => (props.$confirm ? 'var(--wren-control-texture)' : 'none')};
+  border: 1px solid ${(props) => (props.$confirm ? 'var(--wren-danger)' : 'transparent')};
+  border-radius: var(--wren-radius-sm);
+  box-shadow: ${(props) => (props.$confirm ? 'var(--wren-control-shadow)' : 'none')};
+  color: ${(props) => (props.$confirm ? 'var(--wren-danger)' : 'var(--wren-text-secondary)')};
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  min-height: 48px;
-  padding: 0 18px;
-  text-transform: uppercase;
-  width: 100%;
+  font-size: 13px;
+  font-weight: 580;
+  min-height: 34px;
+  padding: 0 14px;
+  margin: 8px 14px;
+  width: ${(props) => (props.$confirm ? 'calc(100% - 28px)' : 'auto')};
+
+  &:hover {
+    color: ${(props) => (props.$confirm ? 'var(--wren-danger)' : 'var(--wren-text-primary)')};
+    border-color: ${(props) =>
+      props.$confirm ? 'var(--wren-danger)' : 'var(--wren-border-subtle)'};
+    background-color: var(--wren-surface-hover);
+    box-shadow: ${(props) => (props.$confirm ? 'var(--wren-control-shadow)' : 'var(--wren-control-shadow-hover)')};
+  }
+
+  &:active {
+    transform: translateY(1px);
+    background-color: var(--wren-surface-active);
+    box-shadow: var(--wren-control-shadow-pressed);
+  }
 `
 
 const CannotConnectSub = styled.div`
-  padding: 0px 32px 0px 32px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  padding: ${(props) => (props.$standalone ? '22px 24px 24px' : '0 24px 24px')};
+  color: var(--wren-text-secondary);
   font-size: 14px;
-  flex-direction: column;
+  line-height: 1.5;
+  text-align: center;
 `
 
 const UnsupportedTab = styled.div`
-  padding: 32px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 18px;
+  padding: 24px 24px 8px;
+  color: var(--wren-text-primary);
+  font-size: 16px;
+  font-weight: 620;
+  text-align: center;
 `
 
 const UnsupportedOrigin = styled.div`
-  color: var(--moon);
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 18px;
+  max-width: 100%;
+  padding-top: 8px;
+  color: var(--wren-accent-hover);
+  font-family: var(--wren-font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 `
 
 const Download = styled.a`
-  color: var(--good);
-  height: 64px;
-  width: 100%;
-  font-weight: 700;
+  color: var(--wren-text-inverse);
+  min-height: 42px;
+  margin: 0 14px 14px;
+  width: calc(100% - 28px);
+  border: 1px solid var(--wren-accent-hover);
+  border-radius: var(--wren-radius-sm);
+  background: var(--wren-accent);
+  background-image: var(--wren-control-texture);
+  box-shadow: var(--wren-control-shadow);
+  font-weight: 650;
   display: flex;
   justify-content: center;
   align-items: center;
-  text-transform: uppercase;
   cursor: pointer;
-  font-size: 17px;
-  letter-spacing: 1px;
-  padding-right: 1px;
+  font-size: 14px;
 
   * {
     pointer-events: none;
   }
 
   &:visited {
-    color: var(--good);
+    color: var(--wren-text-inverse);
+  }
+
+  &:hover {
+    background-color: var(--wren-accent-hover);
+  }
+
+  &:active {
+    transform: translateY(1px);
+    background-color: var(--wren-accent-active);
   }
 `
 
 const CurrentOriginTitle = styled.div`
   position: relative;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 9px;
+  min-width: 0;
   align-items: center;
-  font-size: 15px;
-  height: 44px;
-  padding-top: 8px;
-  margin-top: 0px;
-  font-weight: 400;
+  min-height: 50px;
+  padding: 9px 14px;
+  color: var(--wren-text-secondary);
+  font-family: var(--wren-font-mono);
+  font-size: 12px;
+  font-weight: 450;
+
   svg {
-    position: relative;
-    top: 1px;
-    margin-right: 10px;
+    width: 15px;
     height: 15px;
+    flex: none;
+    color: var(--wren-text-muted);
+  }
+
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 `
 
 const ChainButtonIcon = styled.div`
-  position: absolute;
-  top: 12px;
-  left: 10px;
-  width: 20px;
-  height: 20px;
-  background: ${(props) => (props.selected ? 'var(--good)' : 'var(--ghostAZ)')};
-  border-radius: 10px;
+  width: 10px;
+  height: 10px;
+  flex: none;
+  background: ${(props) => (props.$selected ? 'var(--wren-success)' : 'transparent')};
+  border-radius: 50%;
   box-sizing: border-box;
-  border: solid 3px var(--ghostZ);
+  border: 1px solid
+    ${(props) => (props.$selected ? 'var(--wren-success)' : 'var(--wren-border-strong)')};
 `
 
 const ChainButtonLabel = styled.div`
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   flex-grow: 1;
   font-size: 14px;
-  padding-left: 4px;
-  font-weight: 500;
-  height: 44px;
+  font-weight: 540;
+  min-height: 40px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `
 
-const Overlay = styled.div`
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  background: linear-gradient(-35deg, var(--overlayA) 0%, var(--overlayB) 100%);
-  z-index: 9999999999999;
-  pointer-events: none;
+const ChainButtonControl = styled.button`
+  appearance: none;
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  padding: 0 14px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  color: ${(props) => (props.$selected ? 'var(--wren-text-primary)' : 'var(--wren-text-secondary)')};
+  background: ${(props) => (props.$selected ? 'var(--wren-ledger-selected)' : 'transparent')};
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--wren-motion-fast) var(--wren-ease);
+
+  &:hover:not(:disabled) {
+    color: var(--wren-text-primary);
+    background: var(--wren-surface-hover);
+  }
+
+  &:active:not(:disabled) {
+    background: var(--wren-surface-active);
+  }
+
+  &:disabled {
+    color: var(--wren-text-muted);
+    cursor: default;
+    opacity: 0.62;
+  }
 `
 
 const originDomainRegex = /^(?<protocol>.+:(?:\/\/)?)(?<origin>[^#/]*)/
@@ -358,28 +445,26 @@ const chainConnected = ({ connected }) => connected === undefined || connected
 
 const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith('https://')
 
-const ChainButton = ({ index, chain, selected }) => {
+const ChainButton = ({ chain, selected }) => {
   const { chainId, name } = chain
   const isSelectable = chainConnected(chain)
   return (
-    <ClusterValue
-      style={{
-        flexGrow: 0,
-        width: 'calc(50% - 3px)',
-        borderBottomRightRadius: index === 0 ? '8px' : 'auto',
-        opacity: isSelectable ? 1 : 0.4,
-        cursor: isSelectable ? 'pointer' : 'default'
-      }}
+    <ChainButtonControl
+      type="button"
+      $selected={selected}
+      disabled={!isSelectable}
+      aria-pressed={selected}
+      title={name}
       onClick={() => {
         if (isSelectable) {
           const targetChain = toRpcChainId(chainId)
-          if (targetChain) frameConnect.postMessage({ type: 'switchChain', chainId: targetChain })
+          if (targetChain) postFrameMessage({ type: 'switchChain', chainId: targetChain })
         }
       }}
     >
-      <ChainButtonIcon selected={selected} />
+      <ChainButtonIcon $selected={selected} />
       <ChainButtonLabel>{name}</ChainButtonLabel>
-    </ClusterValue>
+    </ChainButtonControl>
   )
 }
 
@@ -393,15 +478,15 @@ class _Settings extends React.Component {
 
     if (authentication.status === 'pairing') {
       return (
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
+        <ClusterBoxMain>
           <Cluster>
             <ClusterRow>
               <ClusterValue>
-                <PairingPanel>
-                  <PairingTitle>Confirm Companion Pairing</PairingTitle>
+                <PairingPanel role="status" aria-live="polite">
+                  <PairingTitle>Pair this Companion</PairingTitle>
                   <PairingCode>{authentication.pairingCode}</PairingCode>
                   <PairingDetail>
-                    Approve only if this code matches the Wren desktop prompt.
+                    Approve only when this code matches Wren on desktop.
                   </PairingDetail>
                 </PairingPanel>
               </ClusterValue>
@@ -413,7 +498,7 @@ class _Settings extends React.Component {
 
     if (authentication.status === 'error') {
       return (
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
+        <ClusterBoxMain>
           <Cluster>
             <ClusterRow>
               <ClusterValue>
@@ -430,7 +515,7 @@ class _Settings extends React.Component {
 
     if (authentication.status === 'preparing' || authentication.status === 'authenticating') {
       return (
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
+        <ClusterBoxMain>
           <Cluster>
             <ClusterRow>
               <ClusterValue>
@@ -449,7 +534,7 @@ class _Settings extends React.Component {
 
     if (authentication.status === 'rotating') {
       return (
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
+        <ClusterBoxMain>
           <Cluster>
             <ClusterRow>
               <ClusterValue>
@@ -468,19 +553,19 @@ class _Settings extends React.Component {
 
     const confirm = this.state.confirmCredentialRotation
     return (
-      <ClusterBoxMain style={{ marginTop: '12px' }}>
+      <ClusterBoxMain>
         <Cluster>
           <ClusterRow>
             <ClusterValue pointerEvents>
               <PairingButton
-                confirm={confirm}
+                $confirm={confirm}
                 onClick={() => {
                   if (!confirm) return this.setState({ confirmCredentialRotation: true })
                   this.setState({ confirmCredentialRotation: false })
-                  frameConnect.postMessage({ type: 'rotateCredential' })
+                  postFrameMessage({ type: 'rotateCredential' })
                 }}
               >
-                {confirm ? 'Confirm Reset And Re-Pair' : 'Reset Companion Pairing'}
+                {confirm ? 'Reset pairing? This creates a new installation key.' : 'Reset pairing'}
               </PairingButton>
             </ClusterValue>
           </ClusterRow>
@@ -494,10 +579,10 @@ class _Settings extends React.Component {
       <Cluster>
         <ClusterRow>
           <ClusterValue>
-            <div style={{ paddingBottom: '32px' }}>
-              <NotConnected>Unable to connect to desktop wallet</NotConnected>
-              <CannotConnectSub>Make sure the Wren desktop app is running</CannotConnectSub>
-              <CannotConnectSub>on your machine or download it below</CannotConnectSub>
+            <div>
+              <CannotConnectSub $standalone>
+                Wren is unavailable. Start the desktop app to continue.
+              </CannotConnectSub>
             </div>
           </ClusterValue>
         </ClusterRow>
@@ -521,12 +606,10 @@ class _Settings extends React.Component {
       <Cluster>
         <ClusterRow>
           <ClusterValue>
-            <div style={{ paddingBottom: '32px' }}>
-              <UnsupportedTab>Unsupported tab</UnsupportedTab>
+            <div>
+              <UnsupportedTab>This browser tab is not available to Wren.</UnsupportedTab>
               <CannotConnectSub>
-                <div>Wren does not have access to</div>
-                <UnsupportedOrigin>{origin}</UnsupportedOrigin>
-                <div>tabs in this browser</div>
+                <UnsupportedOrigin title={origin}>{origin}</UnsupportedOrigin>
               </CannotConnectSub>
             </div>
           </ClusterValue>
@@ -535,100 +618,74 @@ class _Settings extends React.Component {
     )
   }
 
-  frameConnected() {
+  desktopStatus() {
     const isConnected = this.store('frameConnected')
 
     return (
-      <Cluster>
-        <ClusterRow>
-          <ClusterValue
-            onClick={() => {
-              if (isConnected) frameConnect.postMessage({ type: 'summon' })
-            }}
-            style={{
-              flexGrow: 1,
-              color: isConnected ? 'var(--good)' : 'var(--moon)',
-              justifyContent: 'space-between',
-              height: '64px'
-            }}
-          >
-            <LogoWrap>
-              <img src={isConnected ? '../icons/icon96good.png' : '../icons/icon96moon.png'} />
-            </LogoWrap>
-            {isConnected ? (
-              <FrameConnected style={{ color: 'var(--good)' }}>Desktop Connected</FrameConnected>
-            ) : (
-              <FrameConnected style={{ color: 'var(--moon)' }}>Desktop Disconnected</FrameConnected>
-            )}
-            <SummonFrameButton>
-              <svg viewBox="0 0 512 512">
-                <path
-                  fill="currentColor"
-                  d="M416 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c17.67 0 32 14.33 32 32v256c0 17.67-14.33 32-32 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c53.02 0 96-42.98 96-96V128C512 74.98 469 32 416 32zM342.6 233.4l-128-128c-12.51-12.51-32.76-12.49-45.25 0c-12.5 12.5-12.5 32.75 0 45.25L242.8 224H32C14.31 224 0 238.3 0 256s14.31 32 32 32h210.8l-73.38 73.38c-12.5 12.5-12.5 32.75 0 45.25s32.75 12.5 45.25 0l128-128C355.1 266.1 355.1 245.9 342.6 233.4z"
-                />
-              </svg>
-            </SummonFrameButton>
-          </ClusterValue>
-        </ClusterRow>
-      </Cluster>
+      <DesktopStatusControl
+        type="button"
+        $connected={isConnected}
+        disabled={!isConnected}
+        aria-live="polite"
+        onClick={() => postFrameMessage({ type: 'summon' })}
+      >
+        <LogoWrap>
+          <img
+            alt=""
+            aria-hidden="true"
+            src={isConnected ? '../icons/icon16good.png' : '../icons/icon16moon.png'}
+          />
+        </LogoWrap>
+        <DesktopStatus $connected={isConnected}>
+          {isConnected ? 'Desktop connected' : 'Desktop unavailable'}
+        </DesktopStatus>
+        {isConnected ? (
+          <span aria-hidden="true">
+            <svg viewBox="0 0 512 512">
+              <path
+                fill="currentColor"
+                d="M416 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c17.67 0 32 14.33 32 32v256c0 17.67-14.33 32-32 32h-64c-17.67 0-32 14.33-32 32s14.33 32 32 32h64c53.02 0 96-42.98 96-96V128C512 74.98 469 32 416 32zM342.6 233.4l-128-128c-12.51-12.51-32.76-12.49-45.25 0c-12.5 12.5-12.5 32.75 0 45.25L242.8 224H32C14.31 224 0 238.3 0 256s14.31 32 32 32h210.8l-73.38 73.38c-12.5 12.5-12.5 32.75 0 45.25s32.75 12.5 45.25 0l128-128C355.1 266.1 355.1 245.9 342.6 233.4z"
+              />
+            </svg>
+          </span>
+        ) : null}
+      </DesktopStatusControl>
     )
   }
 
   appearAsMMToggle() {
-    return this.props.mmAppear ? (
-      <>
-        <ClusterRow>
-          <ClusterValue>
-            <AppearDescription>
-              <svg viewBox="0 0 576 512">
-                <path
-                  fill="var(--mm)"
-                  d="M288 64C39.52 64 0 182.1 0 273.5C0 379.5 78.8 448 176 448c27.33 0 51.21-6.516 66.11-36.79l19.93-40.5C268.3 358.6 278.1 352.4 288 352.1c9.9 .3711 19.7 6.501 25.97 18.63l19.93 40.5C348.8 441.5 372.7 448 400 448c97.2 0 176-68.51 176-174.5C576 182.1 536.5 64 288 64zM160 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S195.3 320 160 320zM416 320c-35.35 0-64-28.65-64-64s28.65-64 64-64c35.35 0 64 28.65 64 64S451.3 320 416 320z"
-                />
-              </svg>
-              <span>
-                Injecting as <span className="mm">Metamask</span>
-              </span>
-            </AppearDescription>
-          </ClusterValue>
-        </ClusterRow>
-        <ClusterRow>
-          <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
-            <AppearToggle>
-              <span>
-                Appear As <span className="frame">Wren</span> Instead
-              </span>
-            </AppearToggle>
-          </ClusterValue>
-        </ClusterRow>
-      </>
-    ) : (
-      <>
-        <ClusterRow>
-          <ClusterValue>
-            <AppearDescription>
-              <svg viewBox="0 0 448 512">
-                <path
-                  fill="var(--good)"
-                  d="M176 448C167.3 448 160 455.3 160 464V512h32v-48C192 455.3 184.8 448 176 448zM272 448c-8.75 0-16 7.25-16 16s7.25 16 16 16s16-7.25 16-16S280.8 448 272 448zM164 172l8.205 24.62c1.215 3.645 6.375 3.645 7.59 0L188 172l24.62-8.203c3.646-1.219 3.646-6.375 0-7.594L188 148L179.8 123.4c-1.215-3.648-6.375-3.648-7.59 0L164 148L139.4 156.2c-3.646 1.219-3.646 6.375 0 7.594L164 172zM336.1 315.4C304 338.6 265.1 352 224 352s-80.03-13.43-112.1-36.59C46.55 340.2 0 403.3 0 477.3C0 496.5 15.52 512 34.66 512H128v-64c0-17.75 14.25-32 32-32h128c17.75 0 32 14.25 32 32v64h93.34C432.5 512 448 496.5 448 477.3C448 403.3 401.5 340.2 336.1 315.4zM64 224h13.5C102.3 280.5 158.4 320 224 320s121.8-39.5 146.5-96H384c8.75 0 16-7.25 16-16v-96C400 103.3 392.8 96 384 96h-13.5C345.8 39.5 289.6 0 224 0S102.3 39.5 77.5 96H64C55.25 96 48 103.3 48 112v96C48 216.8 55.25 224 64 224zM104 136C104 113.9 125.5 96 152 96h144c26.5 0 48 17.88 48 40V160c0 53-43 96-96 96h-48c-53 0-96-43-96-96V136z"
-                />
-              </svg>
-              <span>
-                Injecting as <span className="frame">Wren</span>
-              </span>
-            </AppearDescription>
-          </ClusterValue>
-        </ClusterRow>
-        <ClusterRow>
-          <ClusterValue onClick={() => toggleLocalSetting(APPEAR_AS_MM)}>
-            <AppearToggle>
-              <span>
-                Appear As <span className="mm">Metamask</span> Instead
-              </span>
-            </AppearToggle>
-          </ClusterValue>
-        </ClusterRow>
-      </>
+    const mmAppear = this.props.mmAppear
+
+    return (
+      <ClusterRow>
+        <IdentityRow>
+          <AppearDescription>
+            <span>{mmAppear ? 'Injecting as MetaMask' : 'Injecting as Wren'}</span>
+          </AppearDescription>
+          <IdentityChoices role="group" aria-label="Injecting as">
+            <IdentityButton
+              type="button"
+              $selected={!mmAppear}
+              aria-pressed={!mmAppear}
+              onClick={() => {
+                if (mmAppear) toggleLocalSetting(APPEAR_AS_MM)
+              }}
+            >
+              Wren
+            </IdentityButton>
+            <IdentityButton
+              type="button"
+              $selected={mmAppear}
+              aria-pressed={mmAppear}
+              onClick={() => {
+                if (!mmAppear) toggleLocalSetting(APPEAR_AS_MM)
+              }}
+            >
+              MetaMask
+            </IdentityButton>
+          </IdentityChoices>
+        </IdentityRow>
+      </ClusterRow>
     )
   }
 
@@ -636,24 +693,9 @@ class _Settings extends React.Component {
     const chains = this.store('availableChains') || []
     const currentChain = this.store('currentChain')
 
-    const rows = chains.reduce((result, value, index, array) => {
-      if (index % 2 === 0) result.push(array.slice(index, index + 2))
-      return result
-    }, [])
-
-    return rows.map((row) => (
-      <ClusterRow
-        key={row.map(({ chainId }) => chainId).join(':')}
-        style={{ justifyContent: 'flex-start' }}
-      >
-        {row.map((chain, i) => (
-          <ChainButton
-            key={chain.chainId}
-            index={i}
-            chain={chain}
-            selected={chain.chainId === parseInt(currentChain, 16)}
-          />
-        ))}
+    return chains.map((chain) => (
+      <ClusterRow key={chain.chainId}>
+        <ChainButton chain={chain} selected={chain.chainId === parseInt(currentChain, 16)} />
       </ClusterRow>
     ))
   }
@@ -689,36 +731,27 @@ class _Settings extends React.Component {
     const { protocol, origin } = parseOrigin(url)
 
     if (!isConnected) {
-      return <ClusterBoxMain style={{ marginTop: '12px' }}>{this.notConnected()}</ClusterBoxMain>
+      return <ClusterBoxMain>{this.notConnected()}</ClusterBoxMain>
     }
 
     if (!isSupportedTab) {
-      return (
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
-          {this.unsupportedTab(protocol + origin)}
-        </ClusterBoxMain>
-      )
+      return <ClusterBoxMain>{this.unsupportedTab(protocol + origin)}</ClusterBoxMain>
     }
 
     return (
       <>
-        <ClusterBoxMain style={{ marginTop: '12px' }}>
-          <CurrentOriginTitle>
+        <ClusterBoxMain>
+          <CurrentOriginTitle title={origin}>
             <svg viewBox="0 0 512 512">
               <path
                 fill="currentColor"
                 d="M448 32C483.3 32 512 60.65 512 96V416C512 451.3 483.3 480 448 480H64C28.65 480 0 451.3 0 416V96C0 60.65 28.65 32 64 32H448zM96 96C78.33 96 64 110.3 64 128C64 145.7 78.33 160 96 160H416C433.7 160 448 145.7 448 128C448 110.3 433.7 96 416 96H96z"
               />
             </svg>
-            {origin}
+            <span>{origin}</span>
           </CurrentOriginTitle>
           <Cluster>
-            {this.store('availableChains').length ? (
-              <>
-                {this.chainSelect()}
-                <div style={{ height: '9px' }} />
-              </>
-            ) : null}
+            {this.store('availableChains').length ? <>{this.chainSelect()}</> : null}
             {this.appearAsMMToggle()}
           </Cluster>
         </ClusterBoxMain>
@@ -727,13 +760,16 @@ class _Settings extends React.Component {
   }
 
   render() {
+    const authentication = this.store('authentication') || { status: 'disconnected' }
+    const isAuthenticated = authentication.status === 'authenticated'
+
     return (
       <>
-        <Overlay />
-        <SettingsScroll scrollBar={getScrollBarWidth()}>
-          <ClusterBoxMain>{this.frameConnected()}</ClusterBoxMain>
-          {this.authenticationPanel()}
+        <SettingsScroll>
+          <ClusterBoxMain>{this.desktopStatus()}</ClusterBoxMain>
+          {!isAuthenticated ? this.authenticationPanel() : null}
           {this.renderMainPanel()}
+          {isAuthenticated ? this.authenticationPanel() : null}
         </SettingsScroll>
       </>
     )
@@ -743,7 +779,31 @@ class _Settings extends React.Component {
 const Settings = Restore.connect(_Settings, store)
 
 const frameConnect = chrome.runtime.connect({ name: 'frame_settings' })
-const refreshTimer = setInterval(() => frameConnect.postMessage({ type: 'refresh' }), 5000)
+let framePortConnected = true
+let refreshTimer
+
+const disconnectFramePort = () => {
+  if (!framePortConnected) return
+  framePortConnected = false
+  clearInterval(refreshTimer)
+  store.setFrameConnected(false)
+  store.setAuthentication({ status: 'disconnected' })
+}
+
+const postFrameMessage = (message) => {
+  if (!framePortConnected) return false
+
+  try {
+    frameConnect.postMessage(message)
+    return true
+  } catch {
+    disconnectFramePort()
+    return false
+  }
+}
+
+refreshTimer = setInterval(() => postFrameMessage({ type: 'refresh' }), 5000)
+frameConnect.onDisconnect.addListener(disconnectFramePort)
 window.addEventListener('unload', () => clearInterval(refreshTimer), { once: true })
 
 frameConnect.onMessage.addListener((state) => {
