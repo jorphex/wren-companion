@@ -29,6 +29,12 @@ jobs:
       - run: npm install --global npm@11.12.0
       - run: npm run setup:ci
       - run: npm run audit:release
+      - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+        with:
+          chrome-version: 151.0.7922.77
+      - uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+        with:
+          firefox-version: 153.0.3
       - name: Qualify isolated Chrome and Firefox extensions
         run: npm run qualify:browser
       - name: Verify release package prerequisites
