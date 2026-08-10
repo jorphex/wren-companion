@@ -45,10 +45,13 @@ async function getActiveTab() {
   return tabs[0]
 }
 
-async function executeScript(tabId, func, args) {
+async function executeScript(tabId, func, args, documentId) {
   try {
     const result = await chrome.scripting.executeScript({
-      target: { tabId },
+      target: {
+        tabId,
+        ...(documentId ? { documentIds: [documentId] } : {})
+      },
       func,
       args
     })
@@ -61,43 +64,46 @@ async function executeScript(tabId, func, args) {
   }
 }
 
-async function getLocalSetting(tabId, key) {
-  const results = await executeScript(tabId, (key) => localStorage.getItem(key), [key])
-
-  if (results && results.length > 0) {
-    try {
-      return JSON.parse(results[0].result || false)
-    } catch (e) {
-      return false
-    }
-  }
-
-  return false
-}
-
-async function setLocalSetting(tabId, setting, val) {
-  return executeScript(
-    tabId,
-    (key, val) => {
-      localStorage.setItem(key, val)
-      window.location.reload()
-    },
-    [setting, val]
+async function getLocalSetting(tab) {
+  const results = await executeScript(
+    tab.id,
+    (key) => ({ value: localStorage.getItem(key), url: window.location.href }),
+    [APPEAR_AS_MM]
   )
+  const result = results?.[0]
+
+  if (!result || result.result?.url !== tab.url) return { value: false }
+
+  try {
+    return {
+      value: JSON.parse(result.result.value || false),
+      documentId: result.documentId,
+      url: result.result.url
+    }
+  } catch {
+    return { value: false }
+  }
 }
 
-async function toggleLocalSetting(key) {
+async function setLocalSetting(tab, document, setting, value) {
   const activeTab = await getActiveTab()
-
-  if (activeTab) {
-    const currentValue = await getLocalSetting(activeTab.id, key)
-    const result = await setLocalSetting(activeTab.id, key, !currentValue)
-
-    if (result?.length > 0) window.close()
-    return result?.length > 0
+  if (activeTab?.id !== tab.id || !isInjectedUrl(activeTab.url) || activeTab.url !== document.url) {
+    return false
   }
 
-  return false
+  const results = await executeScript(
+    tab.id,
+    (key, value, expectedUrl) => {
+      if (window.location.href !== expectedUrl) return false
+      localStorage.setItem(key, JSON.stringify(value))
+      window.location.reload()
+      return true
+    },
+    [setting, value, document.url],
+    document.documentId
+  )
+
+  return results?.[0]?.result === true
 }
 
 const SettingsScroll = styled.main`
@@ -319,6 +325,15 @@ const StateNoticeAction = styled.button`
     transform: translateY(1px);
     background-color: var(--wren-accent-active);
   }
+
+  &:disabled {
+    border-color: var(--wren-border-subtle);
+    color: var(--wren-text-muted);
+    background: var(--wren-bg-elevated);
+    background-image: none;
+    box-shadow: none;
+    cursor: default;
+  }
 `
 
 const StateNoticeStatus = styled.div`
@@ -343,7 +358,7 @@ const StateNoticeSecondaryAction = styled(StateNoticeAction)`
   margin-top: 0;
   border-color: var(--wren-border-default);
   color: var(--wren-text-primary);
-  background: var(--wren-surface-raised);
+  background: var(--wren-bg-elevated);
   background-image: none;
   box-shadow: none;
 
@@ -588,7 +603,7 @@ const chainConnected = ({ connected }) => connected === undefined || connected
 
 const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith('https://')
 
-const ChainButton = ({ chain, selected, pending, onSwitch }) => {
+const ChainButton = ({ chain, selected, pending, tabStop, onSwitch }) => {
   const controlRef = React.useRef(null)
   const { chainId, name } = chain
   const isSelectable = chainConnected(chain) && !pending
@@ -606,10 +621,12 @@ const ChainButton = ({ chain, selected, pending, onSwitch }) => {
       disabled={!isSelectable}
       role="radio"
       aria-checked={selected}
+      tabIndex={tabStop ? 0 : -1}
+      data-chain-id={toRpcChainId(chainId)}
       data-chain-selectable={isSelectable ? 'true' : undefined}
       title={name}
       onClick={() => {
-        if (!isSelectable) return
+        if (!isSelectable || selected) return
         const targetChain = toRpcChainId(chainId)
         if (targetChain) onSwitch(targetChain)
       }}
@@ -632,6 +649,7 @@ class _Settings extends React.Component {
   chainSwitchRequest = 0
   identityCancelRef = React.createRef()
   identityCurrentRef = React.createRef()
+  identityDialogRef = React.createRef()
 
   componentDidUpdate() {
     const chainSwitch = this.state.chainSwitch
@@ -649,11 +667,6 @@ class _Settings extends React.Component {
             }
       })
       return
-    }
-
-    const currentChain = this.store('currentChain')
-    if (chainSwitch.targetChain && currentChain === chainSwitch.targetChain) {
-      this.setState({ chainSwitch: { status: 'idle' } })
     }
   }
 
@@ -691,17 +704,75 @@ class _Settings extends React.Component {
   identitySwitch = async (nextValue) => {
     if (this.state.identitySwitch.status === 'pending') return
     this.setState({ identitySwitch: { status: 'pending', target: nextValue } })
-    const changed = await toggleLocalSetting(APPEAR_AS_MM).catch(() => false)
-    if (!changed) this.setState({ identitySwitch: { status: 'failed', target: nextValue } })
+    const changed = await setLocalSetting(
+      this.props.tab,
+      this.props.tabDocument,
+      APPEAR_AS_MM,
+      nextValue
+    ).catch(() => false)
+    if (changed) window.close()
+    else this.setState({ identitySwitch: { status: 'failed', target: nextValue } })
   }
 
-  statusNotice(title, body, action, status, onAction) {
+  moveRadioSelection = (event) => {
+    const keys = {
+      ArrowDown: 1,
+      ArrowRight: 1,
+      ArrowUp: -1,
+      ArrowLeft: -1
+    }
+    const controls = [...event.currentTarget.querySelectorAll('[role="radio"]:not(:disabled)')]
+    const current = event.target.closest('[role="radio"]')
+    if (!current || !controls.includes(current)) return
+
+    let nextIndex
+    if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = controls.length - 1
+    else if (keys[event.key]) {
+      nextIndex = (controls.indexOf(current) + keys[event.key] + controls.length) % controls.length
+    } else {
+      return
+    }
+
+    event.preventDefault()
+    const next = controls[nextIndex]
+    if (next === current) return
+    next.focus()
+    next.click()
+  }
+
+  trapIdentityDialogFocus = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      this.cancelIdentitySwitch()
+      return
+    }
+    if (event.key !== 'Tab') return
+
+    const controls = [
+      ...(this.identityDialogRef.current?.querySelectorAll('button:not(:disabled)') || [])
+    ]
+    if (!controls.length) return
+    const currentIndex = controls.indexOf(document.activeElement)
+    const nextIndex = event.shiftKey
+      ? currentIndex <= 0
+        ? controls.length - 1
+        : currentIndex - 1
+      : currentIndex === controls.length - 1
+        ? 0
+        : currentIndex + 1
+    event.preventDefault()
+    controls[nextIndex].focus()
+  }
+
+  statusNotice(title, body, action, status, onAction, disabled = false) {
+    const isInteractive = typeof onAction === 'function' && !disabled
     return (
       <StateNotice role="status" aria-live="polite">
         <StateNoticeTitle>{title}</StateNoticeTitle>
         <StateNoticeBody>{body}</StateNoticeBody>
         {action ? (
-          <StateNoticeAction type="button" onClick={onAction}>
+          <StateNoticeAction type="button" disabled={!isInteractive} onClick={onAction}>
             {action}
           </StateNoticeAction>
         ) : null}
@@ -710,7 +781,7 @@ class _Settings extends React.Component {
     )
   }
 
-  authenticationPanel() {
+  authenticationPanel(interactionLocked = false) {
     const authentication = this.store('authentication') || { status: 'disconnected' }
 
     if (authentication.status === 'pairing') {
@@ -796,6 +867,7 @@ class _Settings extends React.Component {
             <ClusterValue pointerEvents>
               <PairingButton
                 $confirm={confirm}
+                disabled={interactionLocked}
                 onClick={() => {
                   if (!confirm) return this.setState({ confirmCredentialRotation: true })
                   this.setState({ confirmCredentialRotation: false })
@@ -851,7 +923,7 @@ class _Settings extends React.Component {
     )
   }
 
-  tabNotConnected() {
+  tabNotConnected(interactionLocked) {
     return this.statusNotice(
       'Refresh this tab',
       'This tab has not confirmed its Wren Companion connection yet.',
@@ -859,12 +931,19 @@ class _Settings extends React.Component {
       'Tab not connected',
       async () => {
         const activeTab = await getActiveTab()
-        if (activeTab?.id) chrome.tabs.reload(activeTab.id)
-      }
+        if (
+          activeTab?.id === this.props.tab.id &&
+          activeTab.url === this.props.tabDocument.url &&
+          isInjectedUrl(activeTab.url)
+        ) {
+          chrome.tabs.reload(this.props.tab.id)
+        }
+      },
+      interactionLocked
     )
   }
 
-  networkUnavailable() {
+  networkUnavailable(interactionLocked) {
     const chainSwitch = this.state.chainSwitch
     if (chainSwitch.status === 'pending') {
       const target = this.store('availableChains')?.find(
@@ -883,7 +962,8 @@ class _Settings extends React.Component {
         'Wren kept the current network. Choose another network to continue.',
         'Try again',
         'Declined',
-        () => this.setState({ chainSwitch: { status: 'idle' } })
+        () => this.setState({ chainSwitch: { status: 'idle' } }),
+        interactionLocked
       )
     }
     if (chainSwitch.status === 'failed') {
@@ -894,7 +974,8 @@ class _Settings extends React.Component {
         'Unavailable',
         () => {
           this.setState({ chainSwitch: { status: 'idle' } }, this.focusAvailableNetwork)
-        }
+        },
+        interactionLocked
       )
     }
     return this.statusNotice(
@@ -902,17 +983,19 @@ class _Settings extends React.Component {
       'Wren cannot use this network right now.',
       'Choose another network',
       'Unavailable',
-      this.focusAvailableNetwork
+      this.focusAvailableNetwork,
+      interactionLocked
     )
   }
 
-  noNetworks() {
+  noNetworks(interactionLocked) {
     return this.statusNotice(
       'No networks available',
       'Wren has no available networks for this tab.',
       'Open network settings',
       'Unavailable',
-      () => postFrameMessage({ type: 'summon' })
+      () => postFrameMessage({ type: 'summon' }),
+      interactionLocked
     )
   }
 
@@ -933,7 +1016,7 @@ class _Settings extends React.Component {
     )
   }
 
-  desktopStatus() {
+  desktopStatus(interactionLocked = false) {
     const desktopStatus = this.store('desktopStatus') || 'unavailable'
     const isConnected = desktopStatus === 'connected'
     const isChecking = desktopStatus === 'checking' || desktopStatus === 'connecting'
@@ -942,7 +1025,7 @@ class _Settings extends React.Component {
       <DesktopStatusControl
         type="button"
         $connected={isConnected}
-        disabled={!isConnected}
+        disabled={!isConnected || interactionLocked}
         aria-live="polite"
         onClick={() => postFrameMessage({ type: 'summon' })}
       >
@@ -974,10 +1057,9 @@ class _Settings extends React.Component {
     )
   }
 
-  appearAsMMToggle() {
+  appearAsMMToggle(interactionLocked) {
     const mmAppear = this.props.mmAppear
     const identitySwitch = this.state.identitySwitch
-    const identityLocked = ['confirm', 'pending'].includes(identitySwitch.status)
     const targetIdentity = identitySwitch.target ? 'MetaMask' : 'Wren'
 
     return (
@@ -986,13 +1068,18 @@ class _Settings extends React.Component {
           <AppearDescription>
             <span>{mmAppear ? 'Injecting as MetaMask' : 'Injecting as Wren'}</span>
           </AppearDescription>
-          <IdentityChoices role="radiogroup" aria-label="Wallet identity">
+          <IdentityChoices
+            role="radiogroup"
+            aria-label="Wallet identity"
+            onKeyDown={this.moveRadioSelection}
+          >
             <IdentityButton
               type="button"
               $selected={!mmAppear}
               role="radio"
               aria-checked={!mmAppear}
-              disabled={identityLocked}
+              disabled={interactionLocked}
+              tabIndex={!mmAppear ? 0 : -1}
               ref={!mmAppear ? this.identityCurrentRef : undefined}
               onClick={() => {
                 if (mmAppear) this.armIdentitySwitch(false)
@@ -1005,7 +1092,8 @@ class _Settings extends React.Component {
               $selected={mmAppear}
               role="radio"
               aria-checked={mmAppear}
-              disabled={identityLocked}
+              disabled={interactionLocked}
+              tabIndex={mmAppear ? 0 : -1}
               ref={mmAppear ? this.identityCurrentRef : undefined}
               onClick={() => {
                 if (!mmAppear) this.armIdentitySwitch(true)
@@ -1017,17 +1105,17 @@ class _Settings extends React.Component {
           {identitySwitch.status === 'confirm' ? (
             <IdentityFeedback>
               <StateNotice
+                ref={this.identityDialogRef}
                 role="alertdialog"
-                aria-live="polite"
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    this.cancelIdentitySwitch()
-                  }
-                }}
+                aria-modal="true"
+                aria-labelledby="identity-switch-title"
+                aria-describedby="identity-switch-description"
+                onKeyDown={this.trapIdentityDialogFocus}
               >
-                <StateNoticeTitle>Switch injection identity?</StateNoticeTitle>
-                <StateNoticeBody>
+                <StateNoticeTitle id="identity-switch-title">
+                  Switch injection identity?
+                </StateNoticeTitle>
+                <StateNoticeBody id="identity-switch-description">
                   Switching to {targetIdentity} will reload the active tab and close this popup. Any
                   unsaved work in the tab may be lost. After reload, this tab will use{' '}
                   {targetIdentity} for wallet injection. Continue only if you intend to make this
@@ -1079,18 +1167,24 @@ class _Settings extends React.Component {
     )
   }
 
-  chainSelect() {
+  chainSelect(interactionLocked) {
     const chains = this.store('availableChains') || []
     const currentChain = this.store('currentChain')
+    const selectedChain = chains.find(
+      (chain) => toRpcChainId(chain.chainId) === currentChain && chainConnected(chain)
+    )
+    const tabStopChain =
+      selectedChain || chains.find((chain) => chainConnected(chain) && !interactionLocked)
 
     return (
-      <ChainLedger role="radiogroup" aria-label="Networks">
+      <ChainLedger role="radiogroup" aria-label="Networks" onKeyDown={this.moveRadioSelection}>
         {chains.map((chain) => (
           <ClusterRow key={chain.chainId}>
             <ChainButton
               chain={chain}
               selected={chain.chainId === parseInt(currentChain, 16)}
-              pending={this.state.chainSwitch.status === 'pending'}
+              pending={this.state.chainSwitch.status === 'pending' || interactionLocked}
+              tabStop={chain.chainId === tabStopChain?.chainId}
               onSwitch={this.requestChainSwitch}
             />
           </ClusterRow>
@@ -1121,7 +1215,7 @@ class _Settings extends React.Component {
     }
   }
 
-  renderMainPanel() {
+  renderMainPanel(interactionLocked) {
     const desktopStatus = this.store('desktopStatus') || 'unavailable'
     const isConnected = desktopStatus === 'connected'
     const availableChains = this.store('availableChains') || []
@@ -1148,11 +1242,11 @@ class _Settings extends React.Component {
     }
 
     if (!this.store('currentChain')) {
-      return <MainPanel>{this.tabNotConnected()}</MainPanel>
+      return <MainPanel>{this.tabNotConnected(interactionLocked)}</MainPanel>
     }
 
     if (!availableChains.length) {
-      return <MainPanel>{this.noNetworks()}</MainPanel>
+      return <MainPanel>{this.noNetworks(interactionLocked)}</MainPanel>
     }
 
     const currentChainDetails = availableChains.find(
@@ -1174,12 +1268,12 @@ class _Settings extends React.Component {
           {this.state.chainSwitch.status === 'pending' ||
           this.state.chainSwitch.status === 'rejected' ||
           this.state.chainSwitch.status === 'failed'
-            ? this.networkUnavailable()
+            ? this.networkUnavailable(interactionLocked)
             : !currentChainDetails || !chainConnected(currentChainDetails)
-              ? this.networkUnavailable()
+              ? this.networkUnavailable(interactionLocked)
               : null}
-          {availableChains.length ? this.chainSelect() : null}
-          {this.appearAsMMToggle()}
+          {availableChains.length ? this.chainSelect(interactionLocked) : null}
+          {this.appearAsMMToggle(interactionLocked)}
         </ChainCluster>
       </MainPanel>
     )
@@ -1188,14 +1282,17 @@ class _Settings extends React.Component {
   render() {
     const authentication = this.store('authentication') || { status: 'disconnected' }
     const isAuthenticated = authentication.status === 'authenticated'
+    const interactionLocked =
+      ['confirm', 'pending'].includes(this.state.identitySwitch.status) ||
+      this.state.chainSwitch.status === 'pending'
 
     return (
       <>
         <SettingsScroll>
-          <ClusterBoxMain>{this.desktopStatus()}</ClusterBoxMain>
-          {!isAuthenticated ? this.authenticationPanel() : null}
-          {this.renderMainPanel()}
-          {isAuthenticated ? this.authenticationPanel() : null}
+          <ClusterBoxMain>{this.desktopStatus(interactionLocked)}</ClusterBoxMain>
+          {!isAuthenticated ? this.authenticationPanel(interactionLocked) : null}
+          {this.renderMainPanel(interactionLocked)}
+          {isAuthenticated ? this.authenticationPanel(interactionLocked) : null}
         </SettingsScroll>
       </>
     )
@@ -1252,19 +1349,25 @@ frameConnect.onMessage.addListener((state) => {
   store.setCurrentChain(state.currentChain)
 })
 
-async function getInitialSettings(tabId) {
-  return getLocalSetting(tabId, APPEAR_AS_MM)
+async function getInitialSettings(tab) {
+  return getLocalSetting(tab)
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
   const activeTab = await getActiveTab()
   const isInjectedTab = isInjectedUrl(activeTab?.url)
 
-  const mmAppear = isInjectedTab ? await getInitialSettings(activeTab.id) : false
+  const tabDocument = isInjectedTab ? await getInitialSettings(activeTab) : { value: false }
+  const mmAppear = tabDocument.value
 
   const root = document.getElementById('root')
 
   createRoot(root).render(
-    <Settings tab={activeTab} isSupportedTab={isInjectedTab} mmAppear={mmAppear} />
+    <Settings
+      tab={activeTab}
+      tabDocument={tabDocument}
+      isSupportedTab={isInjectedTab}
+      mmAppear={mmAppear}
+    />
   )
 })

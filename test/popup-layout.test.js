@@ -27,10 +27,16 @@ test('popup bootstrap sizing does not depend on its provisional viewport', () =>
 
 test('network and injection choices expose selection without toggle semantics', () => {
   assert.match(settingsSource, /role="radiogroup" aria-label="Networks"/u)
-  assert.match(settingsSource, /role="radiogroup" aria-label="Wallet identity"/u)
+  assert.match(settingsSource, /role="radiogroup"\s+aria-label="Wallet identity"/u)
   assert.match(settingsSource, /role="radio"/u)
   assert.match(settingsSource, /aria-checked=/u)
   assert.doesNotMatch(settingsSource, /aria-pressed=/u)
+  assert.match(settingsSource, /tabIndex=\{tabStop \? 0 : -1\}/u)
+  assert.match(settingsSource, /onKeyDown=\{this\.moveRadioSelection\}/u)
+  assert.match(settingsSource, /ArrowDown: 1/u)
+  assert.match(settingsSource, /ArrowUp: -1/u)
+  assert.match(settingsSource, /event\.key === 'Home'/u)
+  assert.match(settingsSource, /event\.key === 'End'/u)
 })
 
 test('injection identity changes require an explicit reload acknowledgement', () => {
@@ -39,6 +45,10 @@ test('injection identity changes require an explicit reload acknowledgement', ()
   assert.match(settingsSource, /Keep current identity/u)
   assert.match(settingsSource, /Switch to \{targetIdentity\}/u)
   assert.match(settingsSource, /this\.armIdentitySwitch/u)
+  assert.match(settingsSource, /aria-modal="true"/u)
+  assert.match(settingsSource, /aria-labelledby="identity-switch-title"/u)
+  assert.match(settingsSource, /aria-describedby="identity-switch-description"/u)
+  assert.match(settingsSource, /trapIdentityDialogFocus/u)
 })
 
 test('network switch feedback is driven by the background result rather than a timeout guess', () => {
@@ -47,4 +57,21 @@ test('network switch feedback is driven by the background result rather than a t
   assert.doesNotMatch(settingsSource, /setTimeout\([^)]*chainSwitch/su)
   assert.match(backgroundSource, /type: 'chainSwitchResult'/u)
   assert.match(backgroundSource, /switchError\?\.code === 4001/u)
+  assert.match(settingsSource, /if \(!isSelectable \|\| selected\) return/u)
+  assert.doesNotMatch(settingsSource, /currentChain === chainSwitch\.targetChain/u)
+})
+
+test('identity reload writes the confirmed value only to the captured active document', () => {
+  assert.match(settingsSource, /setLocalSetting\(\n\s*this\.props\.tab,/u)
+  assert.match(settingsSource, /activeTab\?\.id !== tab\.id/u)
+  assert.match(settingsSource, /activeTab\.url !== document\.url/u)
+  assert.match(settingsSource, /documentIds: \[documentId\]/u)
+  assert.match(settingsSource, /localStorage\.setItem\(key, JSON\.stringify\(value\)\)/u)
+  assert.match(settingsSource, /if \(changed\) window\.close\(\)/u)
+  assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
+})
+
+test('pending notices cannot expose a dead action', () => {
+  assert.match(settingsSource, /const isInteractive = typeof onAction === 'function' && !disabled/u)
+  assert.match(settingsSource, /disabled=\{!isInteractive\}/u)
 })
