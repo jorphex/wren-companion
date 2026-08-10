@@ -271,17 +271,44 @@ async function handleSettingsMessage(port, message) {
   }
   if (
     message.type === 'switchChain' &&
-    keys.length === 2 &&
+    keys.length === 3 &&
     typeof message.chainId === 'string' &&
+    typeof message.requestId === 'string' &&
     /^0x(?:0|[1-9a-f][0-9a-f]*)$/u.test(message.chainId)
   ) {
     const session = await activeTopSession(port)
-    if (!session) return
+    if (!session) {
+      try {
+        port.postMessage({
+          type: 'chainSwitchResult',
+          requestId: message.requestId,
+          switched: false,
+          declined: false
+        })
+      } catch {
+        settingsPorts.delete(port)
+      }
+      return
+    }
+    let switchError
     await session
       .requestControl('wallet_switchEthereumChain', [{ chainId: message.chainId }])
-      .catch(() => {})
+      .catch((error) => {
+        switchError = error
+      })
     const chainId = await session.requestControl('eth_chainId', [], true).catch(() => '')
     setPortChain(port, typeof chainId === 'string' ? chainId : '')
+    try {
+      port.postMessage({
+        type: 'chainSwitchResult',
+        requestId: message.requestId,
+        switched:
+          typeof chainId === 'string' && chainId.toLowerCase() === message.chainId.toLowerCase(),
+        declined: switchError?.code === 4001
+      })
+    } catch {
+      settingsPorts.delete(port)
+    }
   }
 }
 

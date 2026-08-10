@@ -3,18 +3,32 @@ const WREN_RDNS = 'io.github.jorphex.wren'
 let provider
 let account
 let chainId
+let pendingAction
 
 const elements = {
   account: document.querySelector('#account'),
   chain: document.querySelector('#chain'),
   confirmation: document.querySelector('#transaction-confirmation'),
+  connect: document.querySelector('[data-action="connect"]'),
   discovery: document.querySelector('#discovery'),
+  discover: document.querySelector('[data-action="discover"]'),
   legacy: document.querySelector('#legacy'),
   log: document.querySelector('#log'),
   personal: document.querySelector('[data-action="personal"]'),
+  refresh: document.querySelector('[data-action="refresh"]'),
   transaction: document.querySelector('[data-action="transaction"]'),
   transport: document.querySelector('#transport'),
   typed: document.querySelector('[data-action="typed"]')
+}
+
+const approvalActions = new Set(['connect', 'personal', 'typed', 'transaction'])
+const actionButtons = {
+  connect: 'Connect account',
+  discover: 'Request EIP-6963 provider',
+  personal: 'Sign fixed personal message',
+  refresh: 'Refresh account and chain',
+  transaction: 'Send zero-value self-transfer',
+  typed: 'Sign fixed EIP-712 message'
 }
 
 function summarize(value) {
@@ -41,13 +55,36 @@ function errorDetails(error) {
 
 function updateControls() {
   const connected = Boolean(provider && account)
-  elements.personal.disabled = !connected
-  elements.typed.disabled = !connected
-  elements.transaction.disabled = !(
-    connected &&
-    globalThis.WrenQualificationTestnets.get(chainId) &&
-    elements.confirmation.checked
-  )
+  const locked = Boolean(pendingAction)
+  elements.discover.disabled = locked
+  elements.connect.disabled = locked
+  elements.refresh.disabled = locked || !provider
+  elements.personal.disabled = locked || !connected
+  elements.typed.disabled = locked || !connected
+  elements.transaction.disabled =
+    locked ||
+    !(
+      connected &&
+      globalThis.WrenQualificationTestnets.get(chainId) &&
+      elements.confirmation.checked
+    )
+  elements.confirmation.disabled = locked
+  for (const [action, label] of Object.entries(actionButtons)) {
+    const button = elements[action]
+    if (button) {
+      button.textContent =
+        pendingAction === action && approvalActions.has(action) ? 'Waiting for approval…' : label
+      button.toggleAttribute('aria-busy', pendingAction === action)
+      if (pendingAction === action) {
+        button.setAttribute(
+          'aria-label',
+          'Waiting for Wren. Finish this request in Wren before trying again.'
+        )
+      } else {
+        button.removeAttribute('aria-label')
+      }
+    }
+  }
   elements.account.textContent = account || 'not connected'
   elements.chain.textContent = chainId || 'unknown'
 }
@@ -82,6 +119,8 @@ function attachProvider(detail) {
   })
   provider.on?.('disconnect', (error) => {
     elements.transport.textContent = 'disconnected'
+    pendingAction = undefined
+    updateControls()
     record('disconnect event', errorDetails(error), 'error')
   })
   provider.on?.('accountsChanged', (accounts) => {
@@ -110,68 +149,88 @@ async function run(action) {
     elements.log.replaceChildren()
     return
   }
+  if (pendingAction) return
   if (!provider) throw new Error('Wren provider has not been discovered')
 
-  if (action === 'connect') {
-    const accounts = await provider.request({ method: 'eth_requestAccounts' })
-    account = Array.isArray(accounts) ? accounts[0] : undefined
-    await refresh()
-    record('Connection approved', accounts)
-    return
-  }
-  if (action === 'refresh') return refresh()
-  if (!account) throw new Error('Connect a disposable account first')
-
-  if (action === 'personal') {
-    const message = `Wren release qualification\nOrigin: ${location.origin}\nChain: ${chainId}`
-    const encoded = `0x${[...new TextEncoder().encode(message)]
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('')}`
-    const signature = await provider.request({
-      method: 'personal_sign',
-      params: [encoded, account]
-    })
-    record('Personal signature returned', signature, 'success')
-    return
-  }
-  if (action === 'typed') {
-    const typedData = {
-      domain: { name: 'Wren qualification', version: '1', chainId },
-      message: { account, statement: 'I am testing a disposable Wren release candidate.' },
-      primaryType: 'Qualification',
-      types: {
-        EIP712Domain: [
-          { name: 'name', type: 'string' },
-          { name: 'version', type: 'string' },
-          { name: 'chainId', type: 'uint256' }
-        ],
-        Qualification: [
-          { name: 'account', type: 'address' },
-          { name: 'statement', type: 'string' }
-        ]
-      }
-    }
-    const signature = await provider.request({
-      method: 'eth_signTypedData_v4',
-      params: [account, JSON.stringify(typedData)]
-    })
-    record('EIP-712 signature returned', signature, 'success')
-    return
-  }
-  if (action === 'transaction') {
-    const testnet = globalThis.WrenQualificationTestnets.get(chainId)
-    if (!testnet || !elements.confirmation.checked) {
-      throw new Error(
-        'An approved testnet and explicit disposable-account confirmation are required'
-      )
-    }
-    const hash = await provider.request({
-      method: 'eth_sendTransaction',
-      params: [{ from: account, to: account, value: '0x0', data: '0x' }]
-    })
-    elements.confirmation.checked = false
+  if (action === 'refresh') {
+    pendingAction = action
     updateControls()
-    record(`${testnet.name} transaction submitted`, hash, 'success')
+    try {
+      await refresh()
+    } finally {
+      pendingAction = undefined
+      updateControls()
+    }
+    return
+  }
+  if (!account && action !== 'connect') throw new Error('Connect a disposable account first')
+
+  if (approvalActions.has(action)) {
+    pendingAction = action
+    updateControls()
+  }
+
+  try {
+    if (action === 'connect') {
+      const accounts = await provider.request({ method: 'eth_requestAccounts' })
+      account = Array.isArray(accounts) ? accounts[0] : undefined
+      await refresh()
+      record('Connection approved', accounts)
+      return
+    }
+    if (action === 'personal') {
+      const message = `Wren release qualification\nOrigin: ${location.origin}\nChain: ${chainId}`
+      const encoded = `0x${[...new TextEncoder().encode(message)]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('')}`
+      const signature = await provider.request({
+        method: 'personal_sign',
+        params: [encoded, account]
+      })
+      record('Personal signature returned', signature, 'success')
+      return
+    }
+    if (action === 'typed') {
+      const typedData = {
+        domain: { name: 'Wren qualification', version: '1', chainId },
+        message: { account, statement: 'I am testing a disposable Wren release candidate.' },
+        primaryType: 'Qualification',
+        types: {
+          EIP712Domain: [
+            { name: 'name', type: 'string' },
+            { name: 'version', type: 'string' },
+            { name: 'chainId', type: 'uint256' }
+          ],
+          Qualification: [
+            { name: 'account', type: 'address' },
+            { name: 'statement', type: 'string' }
+          ]
+        }
+      }
+      const signature = await provider.request({
+        method: 'eth_signTypedData_v4',
+        params: [account, JSON.stringify(typedData)]
+      })
+      record('EIP-712 signature returned', signature, 'success')
+      return
+    }
+    if (action === 'transaction') {
+      const testnet = globalThis.WrenQualificationTestnets.get(chainId)
+      if (!testnet || !elements.confirmation.checked) {
+        throw new Error(
+          'An approved testnet and explicit disposable-account confirmation are required'
+        )
+      }
+      const hash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{ from: account, to: account, value: '0x0', data: '0x' }]
+      })
+      elements.confirmation.checked = false
+      record(`${testnet.name} transaction submitted`, hash, 'success')
+    }
+  } finally {
+    pendingAction = undefined
+    updateControls()
   }
 }
 
