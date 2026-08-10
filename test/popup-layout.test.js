@@ -40,8 +40,8 @@ test('network and injection choices expose selection without toggle semantics', 
 })
 
 test('injection identity changes require an explicit reload acknowledgement', () => {
-  assert.match(settingsSource, /Switch injection identity\?/u)
-  assert.match(settingsSource, /unsaved work in the tab may be lost/u)
+  assert.match(settingsSource, /Change wallet identity\?/u)
+  assert.match(settingsSource, /may discard\s*unsaved work/u)
   assert.match(settingsSource, /Keep current identity/u)
   assert.match(settingsSource, /Switch to \{targetIdentity\}/u)
   assert.match(settingsSource, /this\.armIdentitySwitch/u)

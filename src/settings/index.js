@@ -927,7 +927,7 @@ class _Settings extends React.Component {
     return this.statusNotice(
       'Refresh this tab',
       'This tab has not confirmed its Wren Companion connection yet.',
-      'Refresh tab',
+      'Refresh this tab',
       'Tab not connected',
       async () => {
         const activeTab = await getActiveTab()
@@ -959,7 +959,7 @@ class _Settings extends React.Component {
     if (chainSwitch.status === 'rejected') {
       return this.statusNotice(
         'Network switch declined',
-        'Wren kept the current network. Choose another network to continue.',
+        'Wren kept the current network.',
         'Try again',
         'Declined',
         () => this.setState({ chainSwitch: { status: 'idle' } }),
@@ -1113,13 +1113,11 @@ class _Settings extends React.Component {
                 onKeyDown={this.trapIdentityDialogFocus}
               >
                 <StateNoticeTitle id="identity-switch-title">
-                  Switch injection identity?
+                  Change wallet identity?
                 </StateNoticeTitle>
                 <StateNoticeBody id="identity-switch-description">
-                  Switching to {targetIdentity} will reload the active tab and close this popup. Any
-                  unsaved work in the tab may be lost. After reload, this tab will use{' '}
-                  {targetIdentity} for wallet injection. Continue only if you intend to make this
-                  change.
+                  Switching to {targetIdentity} reloads this tab, closes this popup, and may discard
+                  unsaved work. After reloading, this tab will use {targetIdentity} as its wallet.
                 </StateNoticeBody>
                 <StateNoticeActions>
                   <StateNoticeSecondaryAction
