@@ -2,47 +2,45 @@
 
 Effective: August 4, 2026
 
-Wren Companion connects browser dapps to a Wren desktop wallet
-running on the same computer. It has no analytics, advertising, telemetry,
-remote code, developer-operated service, or cloud account.
+Wren Companion connects browser dapps to a Wren desktop wallet on the same
+computer. It has no analytics, advertising, telemetry, remote code,
+developer-operated service, or cloud account.
 
-## Data Handling
+## What the companion handles
 
 The companion processes the active page origin and wallet JSON-RPC messages,
 which can contain account addresses, chain identifiers, messages, and proposed
-transactions. This information is routed only between the requesting browser
-document and Wren at `ws://127.0.0.1:1248`. It is not sent to the companion
-maintainer or any third party by the extension.
+transactions. It routes them only between the requesting browser document and
+Wren at `ws://127.0.0.1:1248`; the extension does not send them to the
+maintainer or another third party.
 
-Wren desktop and the dapp may independently communicate with RPC endpoints or
-other services selected by their operators. Those communications are outside
-the companion and are governed by the respective software and service policies.
+Wren desktop and a dapp may separately communicate with RPC endpoints or other
+services selected by their operators. Those communications are outside
+Companion and are governed by their respective policies.
 
-## Local Storage
+## Local storage and browser access
 
 The companion stores a non-exportable P-256 pairing credential in browser
-IndexedDB. The credential identifies this extension installation to Wren; it
-is not a wallet private key and cannot sign blockchain transactions. It remains
-until the user resets the companion credential or removes the extension.
+IndexedDB. It identifies this extension installation to Wren, is not a wallet
+private key, and cannot sign blockchain transactions. It remains until the user
+resets the credential or removes the extension.
 
 An optional per-site setting that makes Wren appear as a legacy MetaMask
 provider is stored in that site's browser local storage. Request routing,
-account and chain state, and pending messages are otherwise held only in memory.
+account and chain state, and pending messages otherwise remain in memory.
 
-## Browser Access
+HTTP and HTTPS access lets Companion inject the provider at document start and
+route requests on sites the user visits. It does not scrape arbitrary page
+content or browsing history. `scripting` is used only when the user changes the
+per-site legacy-provider setting, and `alarms` keeps the local Wren connection
+state current.
 
-Access to HTTP and HTTPS pages is required to inject the wallet provider at
-document start and route requests for dapps on sites the user chooses to visit.
-The companion does not scrape arbitrary page content or browsing history.
-`scripting` is used only when the user changes the per-site legacy-provider
-setting, and `alarms` keeps the local Wren connection state current.
-
-## Collection and Sharing
+## Collection and sharing
 
 The maintainer does not collect, retain, sell, or share user data. All handling
-described above occurs locally on the user's device. The extension does not
-execute remotely hosted code.
+above occurs locally on the user's device, and the extension does not execute
+remotely hosted code.
 
-Questions or privacy reports can be filed privately using the contact method in
-[`SECURITY.md`](SECURITY.md), or publicly when appropriate through the
+For privacy reports, use the private contact method in [Security](SECURITY.md),
+or file a public issue when appropriate in the
 [issue tracker](https://github.com/jorphex/wren-companion/issues).

@@ -1,12 +1,12 @@
 # Browser Store Submission
 
-Submit Wren Companion `0.1.0` independently of Wren desktop releases. Reuse this
-store version with future desktop releases while authenticated protocol 2
-remains compatible.
+Submit Wren Companion 0.1.0 independently of Wren desktop releases. Keep this
+store version for later desktop releases while authenticated protocol 2 remains
+compatible. Store credentials and publication are manual and external.
 
-## Qualified Files
+## Qualified files
 
-Generate and verify the files from the exact clean release commit:
+From the exact clean release commit, run:
 
 ```bash
 npm run package:browsers
@@ -18,10 +18,10 @@ npm run package:verify
 - Firefox reviewer source: `artifacts/wren-companion-0.1.0-source.zip`
 - Checksums: `artifacts/SHA256SUMS`
 
-Do not interchange the browser ZIPs. Do not upload the reviewer-source ZIP as
-the installable add-on.
+Do not interchange browser ZIPs or upload the reviewer-source ZIP as an
+installable add-on.
 
-## Shared Listing Copy
+## Shared listing copy
 
 **Name:** Wren Companion
 
@@ -30,15 +30,12 @@ the installable add-on.
 **Description:**
 
 Wren Companion connects browser-based Ethereum and EVM dapps to the Wren wallet
-running on your desktop.
+running on your desktop. Wren retains accounts, hardware signers, approvals, and
+transaction review. The companion injects an EIP-1193 provider, announces Wren
+through EIP-6963, and routes each page's requests to the local wallet. Before
+pairing, compare and approve a six-digit code in both interfaces.
 
-Wren keeps accounts, hardware signers, approvals, and transaction review in
-the desktop application. The companion injects an EIP-1193 provider, announces
-Wren through EIP-6963, and routes each page's requests to the local wallet. A
-six-digit code must be compared and approved before the browser installation is
-paired with Wren.
-
-Wren desktop is required. This project is derived from the original GPL-3.0
+Wren desktop is required. This GPL-3.0 project is derived from the original
 Frame extension and is not affiliated with Frame Labs. The companion has no
 telemetry, advertising, remote code, cloud account, or developer-operated data
 service.
@@ -54,16 +51,16 @@ https://github.com/jorphex/wren-companion/blob/main/PRIVACY.md
 
 ## Chrome Web Store
 
-Upload the Chrome ZIP as a new item. Use `Workflow & Planning` as the category,
-English as the default language, and public distribution. The existing upstream
-listing is a separate item and cannot be updated from this publisher account.
+Upload the Chrome ZIP as a new item. Select `Workflow & Planning`, English as
+the default language, and public distribution. The upstream listing is a
+separate item and cannot be updated from this publisher account.
 
 Privacy form answers:
 
-- **Single purpose:** Connect browser dapps to the user's locally running
-  Wren desktop wallet.
-- **alarms:** Maintains and refreshes the localhost Wren connection state while
-  the Manifest V3 service worker is suspended and resumed.
+- **Single purpose:** Connect browser dapps to the user's locally running Wren
+  desktop wallet.
+- **alarms:** Maintains and refreshes localhost Wren connection state while the
+  Manifest V3 service worker is suspended and resumed.
 - **scripting:** Reads or changes the per-site legacy-provider preference only
   when the user explicitly toggles it in the extension popup.
 - **Host access:** Injects the EIP-1193 provider at document start on HTTP and
@@ -78,35 +75,35 @@ Privacy form answers:
   statements.
 
 Use `src/icons/icon128.png` as the provisional store icon. The Wren-branded
-`store-assets/promo-440x280.png` is usable for submission. Connected and pairing
-screenshots are intentionally pending real paired Wren captures; do not publish
-historical Frame screenshots or reuse assets from the upstream listing. These
-assets have no continuity with the upstream listing.
+`store-assets/promo-440x280.png` is usable for submission. Connected and
+pairing screenshots still need real paired-Wren captures. Do not publish
+historical Frame screenshots or reuse upstream-listing assets; they have no
+continuity with that listing.
 
-Test instructions for reviewers:
+Reviewer test steps:
 
-1. Install Wren desktop from its GitHub release and start it.
-2. Open the companion popup and compare the six-digit code with Wren.
-3. Approve pairing in Wren.
-4. Visit a dapp; Wren is announced through EIP-6963 and connection requests
+1. Install and start Wren desktop from its GitHub release.
+2. Open the Companion popup, compare its six-digit code with Wren, and approve
+   pairing in Wren.
+3. Visit a dapp. Wren is announced through EIP-6963, and connection requests
    appear in the desktop wallet.
-5. No account or paid service is required; disposable accounts are recommended.
+4. No account or paid service is required; disposable accounts are recommended.
 
-Choose deferred publishing when submitting for review so approval can be
-checked before the listing becomes public.
+Choose deferred publishing so the approved listing can be checked before it is
+public.
 
 ## Mozilla Add-ons
 
-In the Add-ons Developer Hub, submit a new add-on **On this site** and upload the
-Firefox ZIP. The manifest's UUID is unique to Wren Companion. Select desktop Firefox,
-mark the add-on experimental while the desktop wallet is still a preview, and
-indicate that additional free software (Wren desktop) is required.
+In Add-ons Developer Hub, submit a new add-on **On this site** and upload the
+Firefox ZIP. The manifest UUID is unique to Wren Companion. Select desktop
+Firefox, mark the add-on experimental while the desktop wallet is a preview,
+and say that additional free software (Wren desktop) is required.
 
 When asked whether source is required, choose **Yes** and upload the matching
-reviewer-source ZIP. Paste the functional test steps above into Notes for
-Reviewers and point reviewers to `MOZILLA_REVIEW.md` inside the source archive.
-Select the GPL-3.0-only license, provide the shared listing copy and privacy
-policy, then submit the version for signing and review.
+reviewer-source ZIP. Put the reviewer test steps above in Notes for Reviewers,
+link to `MOZILLA_REVIEW.md` in the source archive, select GPL-3.0-only, provide
+the shared listing copy and privacy policy, and add source links for third-party
+libraries. Then submit for signing and review.
 
 After Mozilla signs the version, install the signed file in regular Firefox and
 repeat pairing, connection, account/chain event, reset, and revocation checks
