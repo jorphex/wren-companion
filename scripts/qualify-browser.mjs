@@ -185,7 +185,7 @@ async function stopBrowser(child) {
 async function qualifyChrome(root, extension, desktop, top, frame) {
   const profile = path.join(root, 'chrome-profile')
   await mkdir(profile)
-  const chrome = executable(['google-chrome', 'google-chrome-stable', 'chromium'])
+  const chrome = executable(['chrome', 'google-chrome', 'google-chrome-stable', 'chromium'])
   const child = spawn(
     chrome,
     [
