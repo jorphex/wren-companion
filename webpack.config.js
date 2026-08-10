@@ -1,5 +1,13 @@
-const path = require('path')
 const TerserPlugin = require('terser-webpack-plugin')
+const webpack = require('webpack')
+
+const { buildDirectory, parseDesktopPort } = require('./scripts/build-options.cjs')
+
+const outputPath = buildDirectory(__dirname, process.env.WREN_BUILD_DIRECTORY)
+const desktopPort = parseDesktopPort(process.env.WREN_DESKTOP_PORT)
+const endpointPlugin = new webpack.DefinePlugin({
+  'globalThis.__WREN_DESKTOP_PORT__': JSON.stringify(desktopPort)
+})
 
 module.exports = [
   {
@@ -7,7 +15,7 @@ module.exports = [
     entry: './src/inject.js',
     output: {
       publicPath: '',
-      path: path.resolve(__dirname, 'dist'),
+      path: outputPath,
       filename: 'inject.js'
     },
     performance: {
@@ -26,7 +34,7 @@ module.exports = [
     },
     output: {
       publicPath: '',
-      path: path.resolve(__dirname, 'dist'),
+      path: outputPath,
       filename: 'frame.js'
     },
     performance: {
@@ -57,7 +65,7 @@ module.exports = [
     },
     output: {
       publicPath: '',
-      path: path.resolve(__dirname, 'dist'),
+      path: outputPath,
       filename: 'settings.js'
     },
     performance: {
@@ -69,9 +77,10 @@ module.exports = [
     entry: './src/index.js',
     output: {
       publicPath: '',
-      path: path.resolve(__dirname, 'dist'),
+      path: outputPath,
       filename: 'index.js'
     },
+    plugins: [endpointPlugin],
     performance: {
       hints: false
     }

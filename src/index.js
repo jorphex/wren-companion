@@ -5,7 +5,7 @@ const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-st
 const { PageSession, derivePageOwner } = require('./page-session')
 
 const frameUrl = (role) =>
-  `ws://127.0.0.1:1248?identity=frame-extension&role=${encodeURIComponent(role)}`
+  `ws://127.0.0.1:${globalThis.__WREN_DESKTOP_PORT__}?identity=frame-extension&role=${encodeURIComponent(role)}`
 const MAX_PAGE_SOCKETS = 32
 const MAX_PAGE_SESSIONS = 256
 const MAX_PAGE_SESSIONS_PER_TAB = 8
