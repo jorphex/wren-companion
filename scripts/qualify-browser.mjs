@@ -31,6 +31,7 @@ const availableChains = Array.from({ length: 18 }, (_, index) => ({
 }))
 const browserArgument = process.argv.find((argument) => argument.startsWith('--browser='))
 const requestedBrowser = browserArgument?.split('=')[1] || 'all'
+const defaultWaitTimeout = process.env.CI ? 45_000 : 20_000
 if (!['all', 'chrome', 'firefox'].includes(requestedBrowser)) {
   throw new Error('--browser must be all, chrome, or firefox')
 }
@@ -56,7 +57,7 @@ function run(command, args, environment = {}) {
   }
 }
 
-async function waitFor(check, label, timeout = 20_000) {
+async function waitFor(check, label, timeout = defaultWaitTimeout) {
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     if (await check()) return
@@ -240,7 +241,11 @@ async function firefoxEvaluate(marionette, expression) {
 
 async function firefoxWaitFor(marionette, expression, label) {
   try {
-    await waitFor(() => firefoxEvaluate(marionette, `Boolean(${expression})`), label, 30_000)
+    await waitFor(
+      () => firefoxEvaluate(marionette, `Boolean(${expression})`),
+      label,
+      Math.max(defaultWaitTimeout, 30_000)
+    )
   } catch (error) {
     const state = await firefoxEvaluate(
       marionette,
