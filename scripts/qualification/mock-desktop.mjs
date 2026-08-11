@@ -113,11 +113,14 @@ function authPayload(challenge) {
 }
 
 export class MockDesktop {
-  constructor() {
+  constructor({ availableChains = [], holdAuthentication = false } = {}) {
     this.connections = new Set()
     this.authentications = []
     this.requests = []
     this.chainIds = new Map()
+    this.availableChains = availableChains
+    this.holdAuthentication = holdAuthentication
+    this.pendingAuthentications = new Set()
     this.server = createServer((request, response) => {
       response.writeHead(404).end()
     })
@@ -126,6 +129,20 @@ export class MockDesktop {
 
   setChainId(origin, chainId) {
     this.chainIds.set(origin, chainId)
+  }
+
+  identity(browser, role = 'control') {
+    return [...this.connections].find(
+      (connection) => connection.identity.browser === browser && connection.role === role
+    )?.identity
+  }
+
+  releaseAuthentication() {
+    this.holdAuthentication = false
+    for (const connection of [...this.pendingAuthentications]) {
+      this.pendingAuthentications.delete(connection)
+      this.authenticate(connection)
+    }
   }
 
   async listen() {
@@ -249,6 +266,16 @@ export class MockDesktop {
     } catch {
       return connection.peer.close(1008)
     }
+    if (this.holdAuthentication) {
+      connection.state = 'waiting-consent'
+      this.pendingAuthentications.add(connection)
+      return
+    }
+    this.authenticate(connection)
+  }
+
+  authenticate(connection) {
+    if (connection.peer.closed) return
     connection.state = 'authenticated'
     connection.fingerprint = connection.challenge.fingerprint
     this.authentications.push({
@@ -281,7 +308,7 @@ export class MockDesktop {
       connecting: request.__extensionConnecting === true
     })
     let result
-    if (request.method === 'wallet_getEthereumChains') result = []
+    if (request.method === 'wallet_getEthereumChains') result = this.availableChains
     else if (request.method === 'web3_clientVersion') result = 'Wren/qualification'
     else if (request.method === 'net_version') result = '1'
     else if (request.method === 'eth_chainId') {

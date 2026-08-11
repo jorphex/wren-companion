@@ -6,7 +6,10 @@ const { buildDirectory, parseDesktopPort } = require('./scripts/build-options.cj
 const outputPath = buildDirectory(__dirname, process.env.WREN_BUILD_DIRECTORY)
 const desktopPort = parseDesktopPort(process.env.WREN_DESKTOP_PORT)
 const endpointPlugin = new webpack.DefinePlugin({
-  'globalThis.__WREN_DESKTOP_PORT__': JSON.stringify(desktopPort)
+  'globalThis.__WREN_DESKTOP_PORT__': JSON.stringify(desktopPort),
+  'globalThis.__WREN_QUALIFICATION_POPUP_TAB__': JSON.stringify(
+    process.env.WREN_QUALIFICATION_POPUP_TAB === '1'
+  )
 })
 
 module.exports = [

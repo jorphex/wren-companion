@@ -347,7 +347,7 @@ chrome.runtime.onConnect.addListener((port) => {
   const ownSettingsPage =
     port.name === 'frame_settings' &&
     port.sender?.id === chrome.runtime.id &&
-    !port.sender.tab &&
+    (!port.sender.tab || globalThis.__WREN_QUALIFICATION_POPUP_TAB__ === true) &&
     typeof port.sender.url === 'string' &&
     port.sender.url.startsWith(chrome.runtime.getURL(''))
   if (!ownSettingsPage) return port.disconnect()

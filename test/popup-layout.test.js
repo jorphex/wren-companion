@@ -3,10 +3,13 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
+let popupLayout
+
 const root = path.join(__dirname, '..')
 const globalStyle = fs.readFileSync(path.join(root, 'src', 'style', 'index.css'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
+const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
 
 test('popup bootstrap sizing does not depend on its provisional viewport', () => {
   const bodyStyle = globalStyle
@@ -23,6 +26,77 @@ test('popup bootstrap sizing does not depend on its provisional viewport', () =>
   assert.ok(settingsScroll, 'SettingsScroll style block is present')
   assert.match(settingsScroll, /max-height:\s*600px;/u)
   assert.doesNotMatch(settingsScroll, /\b(?:vw|vh)\b/u)
+})
+
+test('popup tabs are accepted only in isolated qualification builds', () => {
+  assert.match(backgroundSource, /globalThis\.__WREN_QUALIFICATION_POPUP_TAB__ === true/u)
+  assert.match(webpackSource, /process\.env\.WREN_QUALIFICATION_POPUP_TAB === '1'/u)
+  assert.match(backgroundSource, /port\.sender\?\.id === chrome\.runtime\.id/u)
+  assert.match(backgroundSource, /port\.sender\.url\.startsWith\(chrome\.runtime\.getURL\(''\)\)/u)
+})
+
+test('real-browser popup qualification covers every state at 100, 125, and 150 percent', async () => {
+  popupLayout ||= await import('../scripts/qualification/popup-layout.mjs')
+
+  assert.deepEqual(popupLayout.POPUP_ZOOM_FACTORS, [1, 1.25, 1.5])
+  assert.deepEqual(popupLayout.POPUP_LAYOUT_STATES, [
+    'pairing',
+    'connected',
+    'unsupported',
+    'long-chain-list',
+    'identity-confirmation'
+  ])
+
+  for (const state of popupLayout.POPUP_LAYOUT_STATES) {
+    for (const zoom of popupLayout.POPUP_ZOOM_FACTORS) {
+      const expression = popupLayout.popupLayoutExpression(zoom, state)
+      assert.match(expression, new RegExp(`const zoom = ${zoom}`, 'u'))
+      assert.match(expression, new RegExp(`const state = "${state}"`, 'u'))
+      assert.match(expression, /document\.documentElement\.style\.zoom/u)
+      assert.match(expression, /scrollIntoView/u)
+    }
+  }
+})
+
+test('popup evidence rejects overflow, small targets, hidden focus, and unreachable controls', async () => {
+  popupLayout ||= await import('../scripts/qualification/popup-layout.mjs')
+  const passing = {
+    state: 'connected',
+    zoom: 1.5,
+    bodyCssWidth: '420px',
+    controlCount: 3,
+    tabbableCount: 2,
+    documentScrollWidth: 420,
+    documentClientWidth: 420,
+    mainScrollWidth: 420,
+    mainClientWidth: 420,
+    undersizedControls: [],
+    undersizedText: [],
+    focusFailures: [],
+    lastControlReachable: true
+  }
+
+  assert.doesNotThrow(() => popupLayout.assertPopupLayout(passing))
+  assert.throws(
+    () => popupLayout.assertPopupLayout({ ...passing, mainScrollWidth: 422 }),
+    /popup overflow/u
+  )
+  assert.throws(
+    () =>
+      popupLayout.assertPopupLayout({
+        ...passing,
+        undersizedControls: [{ label: 'Switch', width: 43, height: 44 }]
+      }),
+    /active target below 44px/u
+  )
+  assert.throws(
+    () => popupLayout.assertPopupLayout({ ...passing, focusFailures: ['Reset pairing'] }),
+    /could not be focused/u
+  )
+  assert.throws(
+    () => popupLayout.assertPopupLayout({ ...passing, lastControlReachable: false }),
+    /not scroll-reachable/u
+  )
 })
 
 test('network and injection choices expose selection without toggle semantics', () => {

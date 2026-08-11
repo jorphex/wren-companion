@@ -12,8 +12,23 @@ import { createFirefoxManifest } from './browser-manifests.mjs'
 import { CdpClient, waitForJson } from './qualification/cdp.mjs'
 import { MarionetteClient } from './qualification/marionette.mjs'
 import { MockDesktop } from './qualification/mock-desktop.mjs'
+import {
+  assertPopupLayout,
+  POPUP_ZOOM_FACTORS,
+  popupLayoutExpression
+} from './qualification/popup-layout.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const qualificationFailureDirectory = path.join(projectRoot, 'artifacts', 'qualification-failures')
+const availableChains = Array.from({ length: 18 }, (_, index) => ({
+  chainId: index + 1,
+  name:
+    index === 0
+      ? 'Ethereum'
+      : `Qualification network ${String(index + 1).padStart(2, '0')} with a long readable name`,
+  connected: true,
+  isTestnet: index > 0
+}))
 const browserArgument = process.argv.find((argument) => argument.startsWith('--browser='))
 const requestedBrowser = browserArgument?.split('=')[1] || 'all'
 if (!['all', 'chrome', 'firefox'].includes(requestedBrowser)) {
@@ -142,7 +157,11 @@ async function buildExtension(directory, desktopPort, browser) {
   run(
     path.join(projectRoot, 'node_modules', '.bin', 'webpack'),
     ['--config', 'webpack.config.js'],
-    { WREN_BUILD_DIRECTORY: directory, WREN_DESKTOP_PORT: String(desktopPort) }
+    {
+      WREN_BUILD_DIRECTORY: directory,
+      WREN_DESKTOP_PORT: String(desktopPort),
+      WREN_QUALIFICATION_POPUP_TAB: '1'
+    }
   )
   run(process.execPath, [path.join(projectRoot, 'src', 'copy-static.js')], {
     WREN_BUILD_DIRECTORY: directory,
@@ -182,6 +201,179 @@ async function stopBrowser(child) {
   ])
 }
 
+async function writeFailureScreenshot(browser, state, zoom, image) {
+  await mkdir(qualificationFailureDirectory, { recursive: true })
+  const filename = `${browser}-${state}-${String(zoom).replace('.', '_')}.png`
+  await writeFile(path.join(qualificationFailureDirectory, filename), Buffer.from(image, 'base64'))
+  return path.join(qualificationFailureDirectory, filename)
+}
+
+async function qualifyChromePopupLayout(settings, state) {
+  const reports = []
+  for (const zoom of POPUP_ZOOM_FACTORS) {
+    const report = await settings.evaluate(popupLayoutExpression(zoom, state))
+    try {
+      assertPopupLayout(report)
+    } catch (error) {
+      const screenshot = await settings.client.send(
+        'Page.captureScreenshot',
+        { format: 'png', captureBeyondViewport: true },
+        settings.sessionId
+      )
+      const evidence = await writeFailureScreenshot('chrome', state, zoom, screenshot.data)
+      throw new Error(`${error.message}\nChrome popup screenshot: ${evidence}`)
+    }
+    reports.push(report)
+  }
+  return reports
+}
+
+async function firefoxEvaluate(marionette, expression) {
+  const result = await marionette.request('WebDriver:ExecuteScript', {
+    script: `return (${expression});`,
+    args: [],
+    newSandbox: false,
+    sandbox: 'default'
+  })
+  return result.value === undefined ? result : result.value
+}
+
+async function firefoxWaitFor(marionette, expression, label) {
+  try {
+    await waitFor(() => firefoxEvaluate(marionette, `Boolean(${expression})`), label, 30_000)
+  } catch (error) {
+    const state = await firefoxEvaluate(
+      marionette,
+      `({ href: location.href, text: document.body?.textContent?.trim().replace(/\\s+/g, ' ').slice(0, 1000) })`
+    ).catch(() => undefined)
+    throw new Error(`${error.message}; page=${JSON.stringify(state)}`)
+  }
+}
+
+async function firefoxNavigateExtension(marionette, url) {
+  await marionette.request('Marionette:SetContext', { value: 'chrome' })
+  try {
+    await marionette.request('WebDriver:ExecuteScript', {
+      script: `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        window.gBrowser.loadURI(Services.io.newURI(arguments[0]), {
+          triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal()
+        });
+        return true;
+      `,
+      args: [url],
+      newSandbox: false,
+      sandbox: 'system'
+    })
+  } finally {
+    await marionette.request('Marionette:SetContext', { value: 'content' })
+  }
+  await firefoxWaitFor(
+    marionette,
+    `location.href === ${JSON.stringify(url)}`,
+    'Firefox extension page'
+  )
+}
+
+async function firefoxChromeEvaluate(marionette, script, args = []) {
+  await marionette.request('Marionette:SetContext', { value: 'chrome' })
+  try {
+    const result = await marionette.request('WebDriver:ExecuteScript', {
+      script,
+      args,
+      newSandbox: false,
+      sandbox: 'system'
+    })
+    return result.value === undefined ? result : result.value
+  } finally {
+    await marionette.request('Marionette:SetContext', { value: 'content' })
+  }
+}
+
+async function firefoxReloadExtensionInBackground(marionette, url) {
+  const loaded = await firefoxChromeEvaluate(
+    marionette,
+    `
+      const window = Services.wm.getMostRecentWindow('navigator:browser');
+      const browser = [...window.gBrowser.browsers].find(
+        (candidate) => candidate !== window.gBrowser.selectedBrowser && candidate.currentURI.spec === arguments[0]
+      );
+      if (!browser) return false;
+      browser.loadURI(Services.io.newURI(arguments[0]), {
+        triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal()
+      });
+      return true;
+    `,
+    [url]
+  )
+  assert.equal(loaded, true, 'Firefox extension qualification tab is available in background')
+}
+
+async function qualifyFirefoxPopupLayout(marionette, state) {
+  const reports = []
+  for (const zoom of POPUP_ZOOM_FACTORS) {
+    const serialized = await firefoxEvaluate(
+      marionette,
+      `JSON.stringify(${popupLayoutExpression(zoom, state)})`
+    )
+    const report = JSON.parse(serialized)
+    try {
+      assertPopupLayout(report)
+    } catch (error) {
+      const screenshot = await marionette.request('WebDriver:TakeScreenshot', {
+        id: null,
+        full: true,
+        scroll: false
+      })
+      const evidence = await writeFailureScreenshot('firefox', state, zoom, screenshot.value)
+      throw new Error(`${error.message}\nFirefox popup screenshot: ${evidence}`)
+    }
+    reports.push(report)
+  }
+  return reports
+}
+
+async function chromeExtensionWorker(cdp, desktop) {
+  let worker
+  await waitFor(async () => {
+    const identity = desktop.identity('chrome')
+    if (!identity) return false
+    const targets = await cdp.send('Target.getTargets')
+    worker = targets.targetInfos.find(
+      ({ type, url }) =>
+        type === 'service_worker' && url.startsWith(`chrome-extension://${identity.extensionId}/`)
+    )
+    return worker
+  }, 'Companion service worker')
+  return worker
+}
+
+async function openChromePopup(cdp, workerSession, extensionId, label) {
+  await cdp.send(
+    'Runtime.evaluate',
+    { expression: 'chrome.action.openPopup()', awaitPromise: true },
+    workerSession
+  )
+  let popupTarget
+  try {
+    await waitFor(async () => {
+      const targets = await cdp.send('Target.getTargets')
+      popupTarget = targets.targetInfos.find(({ url }) =>
+        url.startsWith(`chrome-extension://${extensionId}/settings.html`)
+      )
+      return popupTarget
+    }, `Companion action popup (${label})`)
+  } catch (error) {
+    const targets = await cdp.send('Target.getTargets')
+    throw new Error(
+      `${error.message}; targets=${targets.targetInfos
+        .map(({ type, url }) => `${type}:${url}`)
+        .join(', ')}`
+    )
+  }
+  return cdp.attach(popupTarget.targetId)
+}
+
 async function qualifyChrome(root, extension, desktop, top, frame) {
   const profile = path.join(root, 'chrome-profile')
   await mkdir(profile)
@@ -217,6 +409,18 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     const version = await waitForJson(`http://127.0.0.1:${port}/json/version`)
     cdp = await new CdpClient(version.webSocketDebuggerUrl).open()
     const page = await cdp.page(`${top.origin}/`)
+    const worker = await chromeExtensionWorker(cdp, desktop)
+    const extensionId = new URL(worker.url).hostname
+    const workerTarget = await cdp.send('Target.attachToTarget', {
+      targetId: worker.targetId,
+      flatten: true
+    })
+    let settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'pairing')
+    await settings.waitFor(`document.body.textContent.includes('Pair this Companion')`)
+    await qualifyChromePopupLayout(settings, 'pairing')
+    await settings.close()
+
+    desktop.releaseAuthentication()
     await waitFor(
       () =>
         top.reports.some(({ type }) => type === 'ready') &&
@@ -255,36 +459,28 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     )
     assert.equal(chainId, '0x1')
 
-    const extensionId = desktop.authentications.find(
+    const authenticatedExtensionId = desktop.authentications.find(
       ({ role, browser }) => role === 'control' && browser === 'chrome'
     )?.extensionId
+    assert.equal(authenticatedExtensionId, extensionId)
     assert.match(extensionId, /^[a-p]{32}$/u)
-    const { targetInfos } = await cdp.send('Target.getTargets')
-    const worker = targetInfos.find(
-      ({ type, url }) =>
-        type === 'service_worker' && url.startsWith(`chrome-extension://${extensionId}/`)
-    )
-    assert.ok(worker, 'Companion service worker target is available')
-    const workerSession = await cdp.send('Target.attachToTarget', {
-      targetId: worker.targetId,
-      flatten: true
-    })
-    await cdp.send(
-      'Runtime.evaluate',
-      { expression: 'chrome.action.openPopup()', awaitPromise: true },
-      workerSession.sessionId
-    )
-    let popupTarget
-    await waitFor(async () => {
-      const targets = await cdp.send('Target.getTargets')
-      popupTarget = targets.targetInfos.find(({ url }) =>
-        url.startsWith(`chrome-extension://${extensionId}/settings.html`)
-      )
-      return popupTarget
-    }, 'Companion action popup')
-    const settings = await cdp.attach(popupTarget.targetId)
+    settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'connected')
     const buttonExpression = `[...document.querySelectorAll('button')].find((button) => button.textContent.trim().startsWith('Reset pairing'))`
     await settings.waitFor(buttonExpression)
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await qualifyChromePopupLayout(settings, 'connected')
+    await settings.evaluate(
+      `document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' })`
+    )
+    await qualifyChromePopupLayout(settings, 'long-chain-list')
+    await settings.evaluate(
+      `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click()`
+    )
+    await settings.waitFor(`document.querySelector('[role="alertdialog"]')`)
+    await qualifyChromePopupLayout(settings, 'identity-confirmation')
+    await settings.evaluate(
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Keep current identity').click()`
+    )
     const oldFingerprints = new Set(
       desktop.authentications
         .filter(({ browser }) => browser === 'chrome')
@@ -314,6 +510,16 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       )
     )
     await settings.close()
+
+    const blank = await cdp.page('about:blank')
+    await cdp.send('Target.activateTarget', { targetId: blank.targetId })
+    settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'unsupported')
+    await settings.waitFor(
+      `document.body.textContent.includes('This browser tab is not available to Wren.')`
+    )
+    await qualifyChromePopupLayout(settings, 'unsupported')
+    await settings.close()
+    await blank.close()
     await page.close()
   } catch (error) {
     throw new Error(`${error.message}\nChrome diagnostics:\n${stderr.slice(-4000)}`)
@@ -342,7 +548,15 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
   const firefox = executable(['firefox'])
   const child = spawn(
     firefox,
-    ['--headless', '--marionette', '--no-remote', '--profile', profile, 'about:blank'],
+    [
+      '--headless',
+      '--marionette',
+      '-remote-allow-system-access',
+      '--no-remote',
+      '--profile',
+      profile,
+      'about:blank'
+    ],
     {
       env: {
         ...process.env,
@@ -365,6 +579,43 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     })
     assert.equal(installed.value, '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}')
     await marionette.request('WebDriver:Navigate', { url: `${top.origin}/` })
+    const initialHandles = await marionette.request('WebDriver:GetWindowHandles')
+    const topHandle = (initialHandles.value || initialHandles)[0]
+    await waitFor(() => desktop.identity('firefox'), 'Firefox Companion identity', 30_000)
+    const extensionId = desktop.identity('firefox').extensionId
+    const popupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
+    const popupHandle = popupWindow.value?.handle || popupWindow.handle
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
+    await firefoxNavigateExtension(marionette, `moz-extension://${extensionId}/settings.html`)
+    await marionette.request('WebDriver:SetWindowRect', {
+      x: 0,
+      y: 0,
+      width: 680,
+      height: 720
+    })
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
+    try {
+      await firefoxWaitFor(
+        marionette,
+        `document.body.textContent.includes('Pair this Companion')`,
+        'Firefox pairing popup'
+      )
+    } catch (error) {
+      throw new Error(
+        `${error.message}; connections=${JSON.stringify(
+          [...desktop.connections].map(({ role, identity, state }) => ({ role, identity, state }))
+        )}`
+      )
+    }
+    await qualifyFirefoxPopupLayout(marionette, 'pairing')
+
+    desktop.releaseAuthentication()
     await waitFor(
       () =>
         top.reports.some(({ type }) => type === 'ready') &&
@@ -379,6 +630,34 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     assert.ok(desktop.requests.some(({ origin }) => origin === frame.origin))
     assert.equal(top.reports.find(({ type }) => type === 'ready')?.chainId, '0x1')
     assert.equal(frame.reports.find(({ type }) => type === 'ready')?.chainId, '0x2')
+    await firefoxWaitFor(
+      marionette,
+      `document.body.textContent.includes('Reset pairing') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      'Firefox connected popup'
+    )
+    await qualifyFirefoxPopupLayout(marionette, 'connected')
+    await firefoxEvaluate(
+      marionette,
+      `(() => { document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' }); return true })()`
+    )
+    await qualifyFirefoxPopupLayout(marionette, 'long-chain-list')
+    await firefoxEvaluate(
+      marionette,
+      `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click(); return true })()`
+    )
+    await firefoxWaitFor(
+      marionette,
+      `document.querySelector('[role="alertdialog"]')`,
+      'Firefox identity confirmation'
+    )
+    await qualifyFirefoxPopupLayout(marionette, 'identity-confirmation')
+    await firefoxEvaluate(marionette, `(() => { location.reload(); return true })()`)
+    await firefoxWaitFor(
+      marionette,
+      `document.body.textContent.includes('This browser tab is not available to Wren.')`,
+      'Firefox unsupported popup'
+    )
+    await qualifyFirefoxPopupLayout(marionette, 'unsupported')
   } catch (error) {
     throw new Error(`${error.message}\nFirefox diagnostics:\n${stderr.slice(-4000)}`)
   } finally {
@@ -390,7 +669,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
 async function qualify(browser) {
   const root = await mkdtemp(path.join(os.tmpdir(), `wren-companion-${browser}-`))
   const extension = path.join(root, 'extension')
-  const desktop = new MockDesktop()
+  const desktop = new MockDesktop({ availableChains, holdAuthentication: true })
   const top = new QualificationSite('top')
   const frame = new QualificationSite('frame')
   try {
@@ -405,7 +684,7 @@ async function qualify(browser) {
     if (browser === 'chrome') await qualifyChrome(root, extension, desktop, top, frame)
     else await qualifyFirefox(root, extension, desktop, top, frame)
     console.log(
-      `${browser}: qualified EIP-6963, protocol 2, isolated origins, and disposable profile on port ${desktop.port}`
+      `${browser}: qualified EIP-6963, protocol 2, isolated origins, and popup states at 100/125/150% in a disposable profile on port ${desktop.port}`
     )
   } finally {
     await Promise.allSettled([desktop.close(), top.close(), frame.close()])
