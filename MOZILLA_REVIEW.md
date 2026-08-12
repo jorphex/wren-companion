@@ -1,7 +1,7 @@
 # Mozilla Reviewer Build Instructions
 
 Wren Companion is derived from the GPL-3.0 `frame-labs/frame-extension` project.
-It adds authenticated protocol-2 pairing, strict origin and document routing,
+It adds mutually authenticated protocol-3 pairing, strict origin and document routing,
 EIP-6963 discovery, Manifest V3 support, and current browser and dependency
 maintenance.
 

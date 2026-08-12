@@ -689,7 +689,7 @@ async function qualify(browser) {
     if (browser === 'chrome') await qualifyChrome(root, extension, desktop, top, frame)
     else await qualifyFirefox(root, extension, desktop, top, frame)
     console.log(
-      `${browser}: qualified EIP-6963, protocol 2, isolated origins, and popup states at 100/125/150% in a disposable profile on port ${desktop.port}`
+      `${browser}: qualified EIP-6963, protocol 3, isolated origins, and popup states at 100/125/150% in a disposable profile on port ${desktop.port}`
     )
   } finally {
     await Promise.allSettled([desktop.close(), top.close(), frame.close()])

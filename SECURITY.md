@@ -19,12 +19,15 @@ phrase, private key, or hardware-wallet PIN in the extension or a dapp page.
   payloads cannot supply that authority. Each document has an isolated, bounded
   localhost WebSocket and receives only its own responses, events, and
   subscriptions.
-- After an explicit six-digit approval, a nonextractable, per-installation
-  P-256 credential authenticates Companion to Wren.
-- Protocol 2 does not authenticate Wren or the localhost endpoint to
-  Companion. The settings UI reports a compatible desktop connection, not a
-  Wren server identity. A same-user process that owns or intercepts port 1248
-  remains in the trusted computing base.
+- After an explicit six-digit approval, protocol 3 mutually authenticates the
+  Wren installation and Companion's nonextractable, per-installation P-256
+  control/page key bundle. Signed role- and channel-bound transcripts prevent
+  one key or session from being reused for another role.
+- Exact pinned reconnects are silent. Desktop or Companion identity changes
+  fail closed and require explicit recovery; key rotation retains the prior
+  bundle until a signed final acknowledgement and a successful reconnect prove
+  adoption. A compromised host or browser profile remains in the trusted
+  computing base despite the localhost identity check.
 - Web-page code shares the page's provider environment and can replace or wrap
   injected JavaScript. It is not trusted, and the bridge stores no wallet
   authority. Browser-profile compromise, malicious extensions with sufficient

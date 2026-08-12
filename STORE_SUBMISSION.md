@@ -1,7 +1,7 @@
 # Browser Store Submission
 
 Submit Wren Companion 0.1.0 independently of Wren desktop releases. Keep this
-store version for later desktop releases while authenticated protocol 2 remains
+store version for later desktop releases while mutually authenticated protocol 3 remains
 compatible. Store credentials and publication are manual and external.
 
 ## Qualified files

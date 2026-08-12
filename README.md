@@ -11,9 +11,9 @@ for compatibility. Public discovery uses Wren and `io.github.jorphex.wren`.
 
 ## Compatibility
 
-Companion 0.1.0 uses authenticated protocol 2. Pair it only with the minimum
+Companion 0.1.0 uses mutually authenticated protocol 3. Pair it only with the minimum
 Wren desktop commit named in its `*-compatibility.json` artifact, or a later
-desktop release that retains protocol 2. Desktop releases that retain the
+desktop release that retains protocol 3. Desktop releases that retain the
 protocol do not need a new Companion submission.
 
 ## Build
@@ -49,8 +49,8 @@ interchanged.
 
 On first connection, compare the six-digit code in Wren and the extension, then
 approve it in Wren. Wren can revoke a pairing and the extension can reset its
-credential. Pairing authenticates the extension to Wren; it does not
-authenticate the localhost endpoint to the extension. See [Security](SECURITY.md).
+credential. Pairing mutually authenticates that Wren installation and the
+extension's control/page key bundle. See [Security](SECURITY.md).
 
 ## Test a release candidate
 
