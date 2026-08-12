@@ -1,17 +1,22 @@
-const { bytesToBase64Url } = require('./credential-store')
+const { bytesToBase64Url, fingerprintPublicKey, isPublicKey } = require('./credential-store')
 
-const AUTH_VERSION = 2
-const MAX_AUTH_MESSAGE_BYTES = 8 * 1024
+const AUTH_VERSION = 3
+const AUTH_PROTOCOL = 'wren-companion-auth'
+const PEER_KIND = 'companion'
+const MAX_AUTH_MESSAGE_BYTES = 16 * 1024
 const MAX_CLOCK_SKEW_MS = 2 * 60 * 1000
-const browsers = new Set(['chrome', 'firefox', 'safari'])
+const CHANNEL_ROLES = new Set(['control', 'page'])
+const TRANSCRIPT_ROLES = new Set(['desktop-challenge', 'client-response', 'desktop-ack'])
 const errorCodes = new Set([
   'denied',
   'expired',
   'invalid-message',
   'invalid-proof',
   'invalid-state',
+  'pinned-desktop-mismatch',
   'unsupported-version'
 ])
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
 function deriveExtensionIdentity(runtimeUrl) {
   try {
@@ -32,13 +37,10 @@ function deriveExtensionIdentity(runtimeUrl) {
 }
 
 function exactKeys(value, keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const actual = Object.keys(value).sort()
   const expected = [...keys].sort()
   return actual.length === expected.length && actual.every((key, index) => key === expected[index])
-}
-
-function isObject(value) {
-  return value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function isBase64Url(value, length) {
@@ -57,6 +59,29 @@ function isBase64Url(value, length) {
   }
 }
 
+function base64UrlToBytes(value) {
+  const padding = '='.repeat((4 - (value.length % 4)) % 4)
+  return Uint8Array.from(
+    atob(value.replaceAll('-', '+').replaceAll('_', '/') + padding),
+    (character) => character.charCodeAt(0)
+  )
+}
+
+const validDesktopIdentity = (value, withKey = false) =>
+  exactKeys(
+    value,
+    withKey ? ['installationId', 'fingerprint', 'publicKey'] : ['installationId', 'fingerprint']
+  ) &&
+  UUID_V4.test(value.installationId) &&
+  isBase64Url(value.fingerprint, 43) &&
+  (!withKey || isPublicKey(value.publicKey))
+
+const validClientIdentity = (value) =>
+  exactKeys(value, ['installationId', 'fingerprint', 'roleFingerprint']) &&
+  UUID_V4.test(value.installationId) &&
+  isBase64Url(value.fingerprint, 43) &&
+  isBase64Url(value.roleFingerprint, 43)
+
 function parseServerAuthMessage(data) {
   if (
     typeof data !== 'string' ||
@@ -64,63 +89,46 @@ function parseServerAuthMessage(data) {
   ) {
     return { success: false, code: 'invalid-message' }
   }
-
   let value
   try {
     value = JSON.parse(data)
   } catch {
     return { success: false, code: 'invalid-message' }
   }
-  if (!isObject(value) || value.type !== 'frame-auth') {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.type !== 'frame-auth') {
     return { success: false, code: 'invalid-message' }
   }
-  if (value.version !== AUTH_VERSION) {
-    return { success: false, code: 'unsupported-version' }
-  }
+  if (value.version !== AUTH_VERSION) return { success: false, code: 'unsupported-version' }
 
+  const transcriptFields = [
+    'type',
+    'version',
+    'step',
+    'peerKind',
+    'channelRole',
+    'challengeId',
+    'desktopNonce',
+    'clientNonce',
+    'expiresAt',
+    'desktop',
+    'client',
+    'signature'
+  ]
   if (
-    value.step === 'challenge' &&
-    exactKeys(value, [
-      'type',
-      'version',
-      'step',
-      'challengeId',
-      'clientNonce',
-      'serverNonce',
-      'browser',
-      'extensionId',
-      'installationId',
-      'fingerprint',
-      'expiresAt'
-    ]) &&
-    typeof value.challengeId === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-      value.challengeId
-    ) &&
+    (value.step === 'challenge' || value.step === 'authenticated') &&
+    exactKeys(value, transcriptFields) &&
+    value.peerKind === PEER_KIND &&
+    CHANNEL_ROLES.has(value.channelRole) &&
+    UUID_V4.test(value.challengeId) &&
+    isBase64Url(value.desktopNonce, 43) &&
     isBase64Url(value.clientNonce, 43) &&
-    isBase64Url(value.serverNonce, 43) &&
-    browsers.has(value.browser) &&
-    typeof value.extensionId === 'string' &&
-    value.extensionId.length > 0 &&
-    value.extensionId.length <= 128 &&
-    typeof value.installationId === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
-      value.installationId
-    ) &&
-    isBase64Url(value.fingerprint, 43) &&
-    Number.isSafeInteger(value.expiresAt)
+    Number.isSafeInteger(value.expiresAt) &&
+    validDesktopIdentity(value.desktop, value.step === 'challenge') &&
+    validClientIdentity(value.client) &&
+    isBase64Url(value.signature, 86)
   ) {
     return { success: true, value }
   }
-
-  if (
-    value.step === 'authenticated' &&
-    exactKeys(value, ['type', 'version', 'step', 'fingerprint']) &&
-    isBase64Url(value.fingerprint, 43)
-  ) {
-    return { success: true, value }
-  }
-
   if (
     value.step === 'error' &&
     exactKeys(value, ['type', 'version', 'step', 'code', 'message']) &&
@@ -131,33 +139,43 @@ function parseServerAuthMessage(data) {
   ) {
     return { success: true, value }
   }
-
   return { success: false, code: 'invalid-message' }
 }
 
-function authPayload(challenge) {
+function transcriptObject(challenge, role) {
+  if (!TRANSCRIPT_ROLES.has(role)) throw new Error('Invalid authentication transcript role')
+  return {
+    protocol: AUTH_PROTOCOL,
+    version: AUTH_VERSION,
+    peerKind: PEER_KIND,
+    role,
+    channelRole: challenge.channelRole,
+    desktop: {
+      installationId: challenge.desktop.installationId,
+      fingerprint: challenge.desktop.fingerprint
+    },
+    client: {
+      installationId: challenge.client.installationId,
+      fingerprint: challenge.client.fingerprint,
+      roleFingerprint: challenge.client.roleFingerprint
+    },
+    challengeId: challenge.challengeId,
+    desktopNonce: challenge.desktopNonce,
+    clientNonce: challenge.clientNonce,
+    expiresAt: challenge.expiresAt
+  }
+}
+
+function authPayload(challenge, role) {
   return new TextEncoder().encode(
-    [
-      'frame-extension-auth-v2',
-      challenge.challengeId,
-      challenge.clientNonce,
-      challenge.serverNonce,
-      challenge.browser,
-      challenge.extensionId,
-      challenge.installationId,
-      challenge.fingerprint,
-      String(challenge.expiresAt)
-    ].join('\n')
+    `wren-companion-auth-v3\0${JSON.stringify(transcriptObject(challenge, role))}`
   )
 }
 
 async function pairingCode(challenge, subtle = crypto.subtle) {
-  const prefix = new TextEncoder().encode('frame-pairing-code-v2\0')
-  const payload = authPayload(challenge)
-  const input = new Uint8Array(prefix.length + payload.length)
-  input.set(prefix)
-  input.set(payload, prefix.length)
-  const digest = new Uint8Array(await subtle.digest('SHA-256', input))
+  const digest = new Uint8Array(
+    await subtle.digest('SHA-256', authPayload(challenge, 'desktop-challenge'))
+  )
   const value = new DataView(digest.buffer, digest.byteOffset, digest.byteLength).getUint32(0)
   return String(value % 1_000_000).padStart(6, '0')
 }
@@ -165,22 +183,65 @@ async function pairingCode(challenge, subtle = crypto.subtle) {
 function validateChallenge(challenge, expected, now = Date.now()) {
   return (
     challenge.step === 'challenge' &&
+    challenge.peerKind === PEER_KIND &&
+    challenge.channelRole === expected.channelRole &&
     challenge.clientNonce === expected.clientNonce &&
-    challenge.browser === expected.browser &&
-    challenge.extensionId === expected.extensionId &&
-    challenge.installationId === expected.installationId &&
-    challenge.fingerprint === expected.fingerprint &&
+    challenge.client.installationId === expected.installationId &&
+    challenge.client.fingerprint === expected.fingerprint &&
+    challenge.client.roleFingerprint === expected.roleFingerprint &&
     challenge.expiresAt > now &&
     challenge.expiresAt <= now + MAX_CLOCK_SKEW_MS
   )
 }
 
+function sameExchange(message, challenge) {
+  return (
+    message.step === 'authenticated' &&
+    message.peerKind === challenge.peerKind &&
+    message.channelRole === challenge.channelRole &&
+    message.challengeId === challenge.challengeId &&
+    message.desktopNonce === challenge.desktopNonce &&
+    message.clientNonce === challenge.clientNonce &&
+    message.expiresAt === challenge.expiresAt &&
+    message.desktop.installationId === challenge.desktop.installationId &&
+    message.desktop.fingerprint === challenge.desktop.fingerprint &&
+    message.client.installationId === challenge.client.installationId &&
+    message.client.fingerprint === challenge.client.fingerprint &&
+    message.client.roleFingerprint === challenge.client.roleFingerprint
+  )
+}
+
+async function verifyDesktopProof(message, role, publicKey, subtle = crypto.subtle) {
+  if ((await fingerprintPublicKey(publicKey, subtle)) !== message.desktop.fingerprint) return false
+  try {
+    const key = await subtle.importKey(
+      'jwk',
+      publicKey,
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      false,
+      ['verify']
+    )
+    return subtle.verify(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      key,
+      base64UrlToBytes(message.signature),
+      authPayload(message, role)
+    )
+  } catch {
+    return false
+  }
+}
+
 module.exports = {
+  AUTH_PROTOCOL,
   AUTH_VERSION,
   MAX_AUTH_MESSAGE_BYTES,
   authPayload,
   deriveExtensionIdentity,
   pairingCode,
   parseServerAuthMessage,
-  validateChallenge
+  sameExchange,
+  transcriptObject,
+  validateChallenge,
+  verifyDesktopProof
 }

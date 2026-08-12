@@ -805,6 +805,24 @@ class _Settings extends React.Component {
       )
     }
 
+    if (authentication.status === 'upgrade-required') {
+      return (
+        <Cluster>
+          <ClusterRow>
+            <ClusterBoxMain>
+              <PairingPanel role="alert">
+                <PairingTitle>Update Wren</PairingTitle>
+                <PairingDetail>
+                  This Companion version needs a newer Wren desktop to verify its identity. Update
+                  Wren, then reconnect.
+                </PairingDetail>
+              </PairingPanel>
+            </ClusterBoxMain>
+          </ClusterRow>
+        </Cluster>
+      )
+    }
+
     if (authentication.status === 'error') {
       return (
         <ClusterBoxMain>

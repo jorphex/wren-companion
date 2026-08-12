@@ -25,6 +25,18 @@ test('accepts only bounded companion authentication state', async () => {
     parseAuthenticationState({ status: 'error', code: 'denied', message: 'Pairing denied' }),
     { status: 'error', code: 'denied', message: 'Pairing denied' }
   )
+  assert.deepEqual(
+    parseAuthenticationState({
+      status: 'upgrade-required',
+      code: 'upgrade-required',
+      message: 'This version can’t verify Wren’s identity. Update the companion, then reconnect.'
+    }),
+    {
+      status: 'upgrade-required',
+      code: 'upgrade-required',
+      message: 'This version can’t verify Wren’s identity. Update the companion, then reconnect.'
+    }
+  )
   for (const value of [
     undefined,
     { status: 'pairing', pairingCode: '12345' },

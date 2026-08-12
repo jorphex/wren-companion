@@ -68,6 +68,7 @@ function createAuthenticatedSocket(role, onStatus = () => {}) {
     socket: new WebSocket(frameUrl(role)),
     credentialStore,
     identity: extensionIdentity,
+    channelRole: role,
     onStatus
   })
 }
@@ -104,6 +105,10 @@ function handleControlAuthenticationStatus(authentication) {
   if (authentication.status === 'disconnected' && frameState.authentication.status === 'error')
     return
   setFrameState({ authentication })
+  if (authentication.status === 'upgrade-required') {
+    setAuthenticationReady(false)
+    queueMicrotask(() => control.pause())
+  }
 }
 
 function handlePageAuthenticationStatus(authentication) {

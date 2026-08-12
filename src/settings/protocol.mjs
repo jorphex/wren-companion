@@ -18,6 +18,15 @@ function parseAuthenticationState(value) {
   }
   if (value.status === 'authenticated') return { status: 'authenticated' }
   if (
+    value.status === 'upgrade-required' &&
+    value.code === 'upgrade-required' &&
+    typeof value.message === 'string' &&
+    value.message.length > 0 &&
+    value.message.length <= 1024
+  ) {
+    return { status: 'upgrade-required', code: value.code, message: value.message }
+  }
+  if (
     value.status === 'error' &&
     typeof value.code === 'string' &&
     value.code.length > 0 &&
