@@ -1,4 +1,9 @@
 const { ControlClient } = require('./control-client')
+const {
+  canPerformAuthenticationAction,
+  parseAuthenticationAction,
+  shouldPauseAuthentication
+} = require('./authentication-actions')
 const { deriveExtensionIdentity } = require('./auth-protocol')
 const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
@@ -105,7 +110,7 @@ function handleControlAuthenticationStatus(authentication) {
   if (authentication.status === 'disconnected' && frameState.authentication.status === 'error')
     return
   setFrameState({ authentication })
-  if (authentication.status === 'upgrade-required') {
+  if (shouldPauseAuthentication(authentication)) {
     setAuthenticationReady(false)
     queueMicrotask(() => control.pause())
   }
@@ -228,6 +233,13 @@ async function initializeSettingsPort(port) {
 async function handleSettingsMessage(port, message) {
   if (!message || typeof message !== 'object' || Array.isArray(message)) return
   const keys = Object.keys(message)
+  const authenticationAction = parseAuthenticationAction(message)
+  if (authenticationAction === 'reconnect') {
+    if (canPerformAuthenticationAction(authenticationAction, frameState.authentication)) {
+      control.restart()
+    }
+    return
+  }
   if (message.type === 'summon') {
     if (keys.length !== 1) return
     await control.request('frame_summon').catch(() => {})
@@ -246,8 +258,13 @@ async function handleSettingsMessage(port, message) {
     })
     return port.frameRefreshPromise
   }
-  if (message.type === 'rotateCredential') {
-    if (keys.length !== 1 || credentialRotation) return
+  if (authenticationAction === 'reset-pairing') {
+    if (
+      credentialRotation ||
+      !canPerformAuthenticationAction(authenticationAction, frameState.authentication)
+    ) {
+      return
+    }
     credentialRotation = (async () => {
       setAuthenticationReady(false)
       control.pause()

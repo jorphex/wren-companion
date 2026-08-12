@@ -816,6 +816,12 @@ class _Settings extends React.Component {
                   This Companion version needs a newer Wren desktop to verify its identity. Update
                   Wren, then reconnect.
                 </PairingDetail>
+                <StateNoticeAction
+                  type="button"
+                  onClick={() => postFrameMessage({ type: 'reconnectAuthentication' })}
+                >
+                  Reconnect
+                </StateNoticeAction>
               </PairingPanel>
             </ClusterBoxMain>
           </ClusterRow>
@@ -824,15 +830,39 @@ class _Settings extends React.Component {
     }
 
     if (authentication.status === 'error') {
+      const identityChanged = authentication.code === 'pinned-desktop-mismatch'
+      const confirm = this.state.confirmCredentialRotation
       return (
         <ClusterBoxMain>
           <Cluster>
             <ClusterRow>
               <ClusterValue>
                 <PairingPanel>
-                  <PairingTitle>Companion Authentication Failed</PairingTitle>
-                  <PairingDetail>{authentication.message}</PairingDetail>
+                  <PairingTitle>
+                    {identityChanged ? 'Wren identity changed' : 'Companion Authentication Failed'}
+                  </PairingTitle>
+                  <PairingDetail>
+                    {identityChanged
+                      ? 'Wren no longer matches the saved desktop. Reset pairing only if you expect this change.'
+                      : authentication.message}
+                  </PairingDetail>
                 </PairingPanel>
+                {identityChanged ? (
+                  <PairingButton
+                    $confirm={confirm}
+                    type="button"
+                    onClick={() => {
+                      if (!confirm) return this.setState({ confirmCredentialRotation: true })
+                      this.setState({ confirmCredentialRotation: false })
+                      postFrameMessage({
+                        type: 'rotateCredential',
+                        confirmation: 'reset-pairing'
+                      })
+                    }}
+                  >
+                    {confirm ? 'Confirm reset and compare a new code' : 'Reset pairing'}
+                  </PairingButton>
+                ) : null}
               </ClusterValue>
             </ClusterRow>
           </Cluster>
@@ -889,7 +919,10 @@ class _Settings extends React.Component {
                 onClick={() => {
                   if (!confirm) return this.setState({ confirmCredentialRotation: true })
                   this.setState({ confirmCredentialRotation: false })
-                  postFrameMessage({ type: 'rotateCredential' })
+                  postFrameMessage({
+                    type: 'rotateCredential',
+                    confirmation: 'reset-pairing'
+                  })
                 }}
               >
                 {confirm ? 'Reset pairing? This creates a new installation key.' : 'Reset pairing'}

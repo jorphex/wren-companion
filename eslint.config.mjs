@@ -65,6 +65,7 @@ export default [
   {
     files: [
       'src/auth-protocol.js',
+      'src/authentication-actions.js',
       'src/authenticated-socket.js',
       'src/credential-store.js',
       'src/frame.js',

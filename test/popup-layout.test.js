@@ -149,3 +149,11 @@ test('pending notices cannot expose a dead action', () => {
   assert.match(settingsSource, /const isInteractive = typeof onAction === 'function' && !disabled/u)
   assert.match(settingsSource, /disabled=\{!isInteractive\}/u)
 })
+
+test('terminal authentication recovery stays explicit and confirmable', () => {
+  assert.match(settingsSource, /type: 'reconnectAuthentication'/u)
+  assert.match(settingsSource, />\s*Reconnect\s*</u)
+  assert.match(settingsSource, /Confirm reset and compare a new code/u)
+  assert.match(settingsSource, /confirmation: 'reset-pairing'/u)
+  assert.match(settingsSource, /type="button"/u)
+})

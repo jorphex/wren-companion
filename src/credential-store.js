@@ -287,16 +287,6 @@ class CredentialStore {
     if (candidate && this.rotationCandidate === candidate) this.rotationCandidate = undefined
   }
 
-  reset() {
-    return this.mutate(async () => {
-      const bundle = await createCredentialBundle(this.subtle, crypto.randomUUID(), this.now())
-      await this.storage.set(bundle)
-      this.pending = Promise.resolve(bundle)
-      this.rotationCandidate = undefined
-      return bundle
-    })
-  }
-
   pinDesktop(desktop) {
     return this.mutate(async () => {
       const current = await this.get()
