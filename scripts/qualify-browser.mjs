@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { createFirefoxManifest } from './browser-manifests.mjs'
 import { CdpClient, waitForJson } from './qualification/cdp.mjs'
 import { MarionetteClient } from './qualification/marionette.mjs'
-import { MockDesktop } from './qualification/mock-desktop.mjs'
+import { MockDesktop, QUALIFICATION_AUTH_VERSION } from './qualification/mock-desktop.mjs'
 import {
   assertPopupLayout,
   POPUP_ZOOM_FACTORS,
@@ -179,6 +179,42 @@ async function buildExtension(directory, desktopPort, browser) {
   assert.match(manifest, new RegExp(`127\\.0\\.0\\.1:${desktopPort}`, 'u'))
   assert.doesNotMatch(index, /127\.0\.0\.1:1248/u)
   assert.doesNotMatch(manifest, /127\.0\.0\.1:1248/u)
+  assert.match(index, /wren-companion-auth-v3/u)
+  assert.doesNotMatch(index, /frame-extension-auth-v2/u)
+}
+
+function assertProtocol3Authentication(desktop, browser, fingerprint) {
+  const authentications = desktop.authentications.filter(
+    (authentication) =>
+      authentication.browser === browser &&
+      (fingerprint === undefined || authentication.fingerprint === fingerprint)
+  )
+  assert.ok(authentications.some(({ role }) => role === 'control'))
+  assert.ok(authentications.some(({ role }) => role === 'page'))
+  assert.ok(
+    authentications.every(
+      ({ protocolVersion, desktopFingerprint }) =>
+        protocolVersion === 3 && desktopFingerprint === desktop.desktopIdentity.fingerprint
+    )
+  )
+  const control = authentications.find(({ role }) => role === 'control')
+  const page = authentications.find(({ role }) => role === 'page')
+  assert.equal(control.installationId, page.installationId)
+  assert.equal(control.fingerprint, page.fingerprint)
+  assert.notEqual(control.roleFingerprint, page.roleFingerprint)
+  assert.ok(
+    desktop.authenticationFrames.every(({ version, signed }) => version === 3 && signed === true)
+  )
+  for (const role of ['control', 'page']) {
+    for (const step of ['challenge', 'response', 'authenticated']) {
+      assert.ok(
+        desktop.authenticationFrames.some(
+          (authenticationFrame) =>
+            authenticationFrame.role === role && authenticationFrame.step === step
+        )
+      )
+    }
+  }
 }
 
 async function readChromePort(profile) {
@@ -452,6 +488,16 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       desktop.requests.some(({ role, origin }) => role === 'control' && origin !== undefined),
       false
     )
+    assert.ok(
+      desktop.requests
+        .filter(({ role }) => role === 'page')
+        .every(({ origin }) => origin === top.origin || origin === frame.origin)
+    )
+    const initialFingerprint = desktop.authentications.find(
+      ({ role, browser }) => role === 'control' && browser === 'chrome'
+    )?.fingerprint
+    assert.ok(initialFingerprint)
+    assertProtocol3Authentication(desktop, 'chrome', initialFingerprint)
 
     const pageAuthentications = () =>
       desktop.authentications.filter(({ role, browser }) => role === 'page' && browser === 'chrome')
@@ -506,6 +552,22 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
         ),
       'credential reset'
     )
+    const rotatedFingerprint = desktop.authentications.find(
+      ({ browser, fingerprint }) => browser === 'chrome' && !oldFingerprints.has(fingerprint)
+    )?.fingerprint
+    assert.ok(rotatedFingerprint)
+    await waitFor(
+      () =>
+        desktop.authentications.some(
+          ({ browser, fingerprint, role }) =>
+            browser === 'chrome' && fingerprint === rotatedFingerprint && role === 'control'
+        ) &&
+        desktop.authentications.some(
+          ({ browser, fingerprint, role }) =>
+            browser === 'chrome' && fingerprint === rotatedFingerprint && role === 'page'
+        ),
+      'rotated control and page credentials'
+    )
     assert.ok(
       desktop.authentications.some(
         (authentication) =>
@@ -514,6 +576,46 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
           !oldFingerprints.has(authentication.fingerprint)
       )
     )
+    assertProtocol3Authentication(desktop, 'chrome', rotatedFingerprint)
+
+    const preRecoveryFingerprints = new Set(
+      desktop.authentications
+        .filter(({ browser }) => browser === 'chrome')
+        .map(({ fingerprint }) => fingerprint)
+    )
+    const replacementDesktopFingerprint = await desktop.replaceDesktopIdentity()
+    await settings.waitFor(`document.body.textContent.includes('Wren identity changed')`)
+    await settings.evaluate(`${buttonExpression}.click()`)
+    const confirmedIdentityReset = `[...document.querySelectorAll('button')].find((button) => button.textContent.includes('Confirm reset and compare a new code'))`
+    await settings.waitFor(confirmedIdentityReset)
+    await settings.evaluate(`${confirmedIdentityReset}.click()`)
+    await waitFor(
+      () =>
+        desktop.authentications.some(
+          ({ browser, fingerprint, role, desktopFingerprint }) =>
+            browser === 'chrome' &&
+            !preRecoveryFingerprints.has(fingerprint) &&
+            role === 'control' &&
+            desktopFingerprint === replacementDesktopFingerprint
+        ) &&
+        desktop.authentications.some(
+          ({ browser, fingerprint, role, desktopFingerprint }) =>
+            browser === 'chrome' &&
+            !preRecoveryFingerprints.has(fingerprint) &&
+            role === 'page' &&
+            desktopFingerprint === replacementDesktopFingerprint
+        ),
+      'explicit desktop identity recovery'
+    )
+    const recoveredFingerprint = desktop.authentications.find(
+      ({ browser, fingerprint, desktopFingerprint }) =>
+        browser === 'chrome' &&
+        !preRecoveryFingerprints.has(fingerprint) &&
+        desktopFingerprint === replacementDesktopFingerprint
+    )?.fingerprint
+    assert.ok(recoveredFingerprint)
+    assertProtocol3Authentication(desktop, 'chrome', recoveredFingerprint)
+    await settings.waitFor(buttonExpression)
     await settings.close()
 
     const blank = await cdp.page('about:blank')
@@ -633,6 +735,14 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     assert.ok(firefoxAuth.filter(({ role }) => role === 'page').length >= 2)
     assert.ok(desktop.requests.some(({ origin }) => origin === top.origin))
     assert.ok(desktop.requests.some(({ origin }) => origin === frame.origin))
+    assert.ok(
+      desktop.requests
+        .filter(({ role }) => role === 'page')
+        .every(({ origin }) => origin === top.origin || origin === frame.origin)
+    )
+    const firefoxFingerprint = firefoxAuth.find(({ role }) => role === 'control')?.fingerprint
+    assert.ok(firefoxFingerprint)
+    assertProtocol3Authentication(desktop, 'firefox', firefoxFingerprint)
     assert.equal(top.reports.find(({ type }) => type === 'ready')?.chainId, '0x1')
     assert.equal(frame.reports.find(({ type }) => type === 'ready')?.chainId, '0x2')
     await firefoxWaitFor(
@@ -672,6 +782,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
 }
 
 async function qualify(browser) {
+  assert.equal(QUALIFICATION_AUTH_VERSION, 3, 'Browser qualification must use protocol 3')
   const root = await mkdtemp(path.join(os.tmpdir(), `wren-companion-${browser}-`))
   const extension = path.join(root, 'extension')
   const desktop = new MockDesktop({ availableChains, holdAuthentication: true })

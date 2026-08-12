@@ -3,7 +3,7 @@
   "desktop": {
     "repository": "https://github.com/jorphex/wren",
     "branch": "main",
-    "minimumCommit": "4e03d398910c48f22daa7c97f903cf09563dc721"
+    "minimumCommit": "061c7958c7fceea543773423df59a4be3cc0b79b"
   },
   "protocolVersion": 3
 }

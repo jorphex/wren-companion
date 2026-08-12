@@ -2,6 +2,108 @@ import { createHash, randomBytes, randomUUID, webcrypto } from 'node:crypto'
 import { createServer } from 'node:http'
 
 const MAX_FRAME_BYTES = 1024 * 1024
+const AUTH_PROTOCOL = 'wren-companion-auth'
+export const QUALIFICATION_AUTH_VERSION = 3
+const AUTH_DOMAIN = 'wren-companion-auth-v3\0'
+const CHANNEL_ROLES = new Set(['control', 'page'])
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
+
+function exactKeys(value, keys) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const actual = Object.keys(value).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+}
+
+function isBase64Url(value, bytes) {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/u.test(value)) return false
+  const decoded = Buffer.from(value, 'base64url')
+  return decoded.length === bytes && decoded.toString('base64url') === value
+}
+
+function isPublicKey(value) {
+  return (
+    exactKeys(value, ['kty', 'crv', 'x', 'y', 'ext', 'key_ops']) &&
+    value.kty === 'EC' &&
+    value.crv === 'P-256' &&
+    isBase64Url(value.x, 32) &&
+    isBase64Url(value.y, 32) &&
+    value.ext === true &&
+    Array.isArray(value.key_ops) &&
+    value.key_ops.length === 1 &&
+    value.key_ops[0] === 'verify'
+  )
+}
+
+async function sha256Base64Url(value) {
+  const digest = await webcrypto.subtle.digest(
+    'SHA-256',
+    typeof value === 'string' ? new TextEncoder().encode(value) : value
+  )
+  return Buffer.from(digest).toString('base64url')
+}
+
+async function keyFingerprint(publicKey) {
+  return sha256Base64Url(`${publicKey.x}.${publicKey.y}`)
+}
+
+async function bundleFingerprint(publicKeys) {
+  return sha256Base64Url(
+    `wren-companion-key-bundle-v3\0${await keyFingerprint(publicKeys.control)}.${await keyFingerprint(publicKeys.page)}`
+  )
+}
+
+function transcriptObject(challenge, role) {
+  return {
+    protocol: AUTH_PROTOCOL,
+    version: QUALIFICATION_AUTH_VERSION,
+    peerKind: 'companion',
+    role,
+    channelRole: challenge.channelRole,
+    desktop: {
+      installationId: challenge.desktop.installationId,
+      fingerprint: challenge.desktop.fingerprint
+    },
+    client: {
+      installationId: challenge.client.installationId,
+      fingerprint: challenge.client.fingerprint,
+      roleFingerprint: challenge.client.roleFingerprint
+    },
+    challengeId: challenge.challengeId,
+    desktopNonce: challenge.desktopNonce,
+    clientNonce: challenge.clientNonce,
+    expiresAt: challenge.expiresAt
+  }
+}
+
+function authPayload(challenge, role) {
+  return new TextEncoder().encode(
+    `${AUTH_DOMAIN}${JSON.stringify(transcriptObject(challenge, role))}`
+  )
+}
+
+async function generateDesktopIdentity() {
+  const pair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+    'sign',
+    'verify'
+  ])
+  const exported = await webcrypto.subtle.exportKey('jwk', pair.publicKey)
+  const publicKey = {
+    kty: exported.kty,
+    crv: exported.crv,
+    x: exported.x,
+    y: exported.y,
+    ext: true,
+    key_ops: ['verify']
+  }
+  if (!isPublicKey(publicKey)) throw new Error('Unable to create qualification desktop identity')
+  return {
+    installationId: randomUUID(),
+    fingerprint: await keyFingerprint(publicKey),
+    privateKey: pair.privateKey,
+    publicKey
+  }
+}
 
 function frame(opcode, payload = Buffer.alloc(0)) {
   const body = Buffer.isBuffer(payload) ? payload : Buffer.from(payload)
@@ -96,22 +198,6 @@ function extensionIdentity(origin) {
   }
 }
 
-function authPayload(challenge) {
-  return new TextEncoder().encode(
-    [
-      'frame-extension-auth-v2',
-      challenge.challengeId,
-      challenge.clientNonce,
-      challenge.serverNonce,
-      challenge.browser,
-      challenge.extensionId,
-      challenge.installationId,
-      challenge.fingerprint,
-      String(challenge.expiresAt)
-    ].join('\n')
-  )
-}
-
 export class MockDesktop {
   constructor({ availableChains = [], holdAuthentication = false } = {}) {
     this.connections = new Set()
@@ -121,6 +207,8 @@ export class MockDesktop {
     this.availableChains = availableChains
     this.holdAuthentication = holdAuthentication
     this.pendingAuthentications = new Set()
+    this.pairings = new Map()
+    this.authenticationFrames = []
     this.server = createServer((request, response) => {
       response.writeHead(404).end()
     })
@@ -141,11 +229,12 @@ export class MockDesktop {
     this.holdAuthentication = false
     for (const connection of [...this.pendingAuthentications]) {
       this.pendingAuthentications.delete(connection)
-      this.authenticate(connection)
+      this.authenticate(connection).catch(() => connection.peer.close(1011))
     }
   }
 
   async listen() {
+    this.desktopIdentity = await generateDesktopIdentity()
     await new Promise((resolve, reject) => {
       this.server.once('error', reject)
       this.server.listen(0, '127.0.0.1', resolve)
@@ -187,71 +276,147 @@ export class MockDesktop {
     const peer = new WebSocketPeer(
       socket,
       (text) => this.message(connection, text),
-      () => this.connections.delete(connection)
+      () => {
+        this.connections.delete(connection)
+        this.pendingAuthentications.delete(connection)
+      }
     )
     connection.peer = peer
     this.connections.add(connection)
   }
 
   async message(connection, text) {
+    if (connection.processing) return connection.peer.close(1002)
     let message
     try {
       message = JSON.parse(text)
     } catch {
       return connection.peer.close(1002)
     }
-    if (connection.state === 'hello') return this.hello(connection, message)
-    if (connection.state === 'proof') return this.proof(connection, message)
-    if (connection.state !== 'authenticated') return connection.peer.close(1002)
-    this.rpc(connection, message)
+    connection.processing = true
+    try {
+      if (connection.state === 'hello') return await this.hello(connection, message)
+      if (connection.state === 'proof') return await this.proof(connection, message)
+      if (connection.state !== 'authenticated') return connection.peer.close(1002)
+      this.rpc(connection, message)
+    } finally {
+      connection.processing = false
+    }
   }
 
   async hello(connection, message) {
     if (
-      message?.type !== 'frame-auth' ||
-      message.version !== 2 ||
+      !exactKeys(message, [
+        'type',
+        'version',
+        'step',
+        'peerKind',
+        'channelRole',
+        'clientNonce',
+        'browser',
+        'extensionId',
+        'client'
+      ]) ||
+      message.type !== 'frame-auth' ||
+      message.version !== QUALIFICATION_AUTH_VERSION ||
       message.step !== 'hello' ||
-      typeof message.clientNonce !== 'string' ||
-      typeof message.installationId !== 'string' ||
-      message.publicKey?.crv !== 'P-256'
+      message.peerKind !== 'companion' ||
+      !CHANNEL_ROLES.has(message.channelRole) ||
+      message.channelRole !== connection.role ||
+      message.browser !== connection.identity.browser ||
+      message.extensionId !== connection.identity.extensionId ||
+      !isBase64Url(message.clientNonce, 32) ||
+      !exactKeys(message.client, [
+        'installationId',
+        'fingerprint',
+        'roleFingerprint',
+        'publicKeys'
+      ]) ||
+      !UUID_V4.test(message.client.installationId) ||
+      !isBase64Url(message.client.fingerprint, 32) ||
+      !isBase64Url(message.client.roleFingerprint, 32) ||
+      !exactKeys(message.client.publicKeys, ['control', 'page']) ||
+      !isPublicKey(message.client.publicKeys.control) ||
+      !isPublicKey(message.client.publicKeys.page)
     ) {
       return connection.peer.close(1002)
     }
-    const fingerprint = createHash('sha256')
-      .update(`${message.publicKey.x}.${message.publicKey.y}`)
-      .digest('base64url')
-    connection.publicKey = message.publicKey
+    const controlFingerprint = await keyFingerprint(message.client.publicKeys.control)
+    const pageFingerprint = await keyFingerprint(message.client.publicKeys.page)
+    if (
+      controlFingerprint === pageFingerprint ||
+      message.client.roleFingerprint !==
+        (message.channelRole === 'control' ? controlFingerprint : pageFingerprint) ||
+      message.client.fingerprint !== (await bundleFingerprint(message.client.publicKeys))
+    ) {
+      return connection.peer.close(1002)
+    }
+    connection.client = message.client
+    connection.rolePublicKey = message.client.publicKeys[connection.role]
     connection.challenge = {
       type: 'frame-auth',
-      version: 2,
+      version: QUALIFICATION_AUTH_VERSION,
       step: 'challenge',
+      peerKind: 'companion',
+      channelRole: connection.role,
       challengeId: randomUUID(),
+      desktopNonce: randomBytes(32).toString('base64url'),
       clientNonce: message.clientNonce,
-      serverNonce: randomBytes(32).toString('base64url'),
-      browser: connection.identity.browser,
-      extensionId: connection.identity.extensionId,
-      installationId: message.installationId,
-      fingerprint,
-      expiresAt: Date.now() + 60_000
+      expiresAt: Date.now() + 60_000,
+      desktop: {
+        installationId: this.desktopIdentity.installationId,
+        fingerprint: this.desktopIdentity.fingerprint,
+        publicKey: this.desktopIdentity.publicKey
+      },
+      client: {
+        installationId: message.client.installationId,
+        fingerprint: message.client.fingerprint,
+        roleFingerprint: message.client.roleFingerprint
+      }
     }
+    const signature = await webcrypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      this.desktopIdentity.privateKey,
+      authPayload(connection.challenge, 'desktop-challenge')
+    )
+    connection.challenge.signature = Buffer.from(signature).toString('base64url')
     connection.state = 'proof'
+    this.authenticationFrames.push({
+      direction: 'desktop-to-companion',
+      role: connection.role,
+      step: 'challenge',
+      version: QUALIFICATION_AUTH_VERSION,
+      signed: true
+    })
     connection.peer.send(connection.challenge)
   }
 
   async proof(connection, message) {
     if (
-      message?.type !== 'frame-auth' ||
-      message.version !== 2 ||
-      message.step !== 'proof' ||
+      !exactKeys(message, [
+        'type',
+        'version',
+        'step',
+        'peerKind',
+        'channelRole',
+        'challengeId',
+        'signature'
+      ]) ||
+      message.type !== 'frame-auth' ||
+      message.version !== QUALIFICATION_AUTH_VERSION ||
+      message.step !== 'response' ||
+      message.peerKind !== 'companion' ||
+      message.channelRole !== connection.role ||
       message.challengeId !== connection.challenge.challengeId ||
-      typeof message.signature !== 'string'
+      !isBase64Url(message.signature, 64) ||
+      Date.now() >= connection.challenge.expiresAt
     ) {
       return connection.peer.close(1002)
     }
     try {
       const key = await webcrypto.subtle.importKey(
         'jwk',
-        connection.publicKey,
+        connection.rolePublicKey,
         { name: 'ECDSA', namedCurve: 'P-256' },
         false,
         ['verify']
@@ -260,10 +425,28 @@ export class MockDesktop {
         { name: 'ECDSA', hash: 'SHA-256' },
         key,
         Buffer.from(message.signature, 'base64url'),
-        authPayload(connection.challenge)
+        authPayload(connection.challenge, 'client-response')
       )
       if (!valid) return connection.peer.close(1008)
     } catch {
+      return connection.peer.close(1008)
+    }
+    this.authenticationFrames.push({
+      direction: 'companion-to-desktop',
+      role: connection.role,
+      step: 'response',
+      version: QUALIFICATION_AUTH_VERSION,
+      signed: true
+    })
+    const pairing = this.pairings.get(this.pairingKey(connection))
+    if (connection.role === 'page' && pairing !== connection.client.fingerprint) {
+      connection.peer.send({
+        type: 'frame-auth',
+        version: QUALIFICATION_AUTH_VERSION,
+        step: 'error',
+        code: 'invalid-state',
+        message: 'Pair Wren using the Companion control connection first'
+      })
       return connection.peer.close(1008)
     }
     if (this.holdAuthentication) {
@@ -271,25 +454,59 @@ export class MockDesktop {
       this.pendingAuthentications.add(connection)
       return
     }
-    this.authenticate(connection)
+    await this.authenticate(connection)
   }
 
-  authenticate(connection) {
+  pairingKey(connection) {
+    return `${connection.identity.browser}:${connection.identity.extensionId}:${connection.client.installationId}`
+  }
+
+  async authenticate(connection) {
     if (connection.peer.closed) return
+    connection.state = 'authenticating'
+    const acknowledgement = {
+      type: 'frame-auth',
+      version: QUALIFICATION_AUTH_VERSION,
+      step: 'authenticated',
+      peerKind: 'companion',
+      channelRole: connection.role,
+      challengeId: connection.challenge.challengeId,
+      desktopNonce: connection.challenge.desktopNonce,
+      clientNonce: connection.challenge.clientNonce,
+      expiresAt: connection.challenge.expiresAt,
+      desktop: {
+        installationId: this.desktopIdentity.installationId,
+        fingerprint: this.desktopIdentity.fingerprint
+      },
+      client: connection.challenge.client
+    }
+    const signature = await webcrypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      this.desktopIdentity.privateKey,
+      authPayload(acknowledgement, 'desktop-ack')
+    )
+    acknowledgement.signature = Buffer.from(signature).toString('base64url')
+    if (connection.role === 'control') {
+      this.pairings.set(this.pairingKey(connection), connection.client.fingerprint)
+    }
+    this.authenticationFrames.push({
+      direction: 'desktop-to-companion',
+      role: connection.role,
+      step: 'authenticated',
+      version: QUALIFICATION_AUTH_VERSION,
+      signed: true
+    })
+    connection.peer.send(acknowledgement)
     connection.state = 'authenticated'
-    connection.fingerprint = connection.challenge.fingerprint
     this.authentications.push({
+      protocolVersion: QUALIFICATION_AUTH_VERSION,
       role: connection.role,
       browser: connection.identity.browser,
       extensionId: connection.identity.extensionId,
-      installationId: connection.challenge.installationId,
-      fingerprint: connection.fingerprint
-    })
-    connection.peer.send({
-      type: 'frame-auth',
-      version: 2,
-      step: 'authenticated',
-      fingerprint: connection.fingerprint
+      installationId: connection.client.installationId,
+      fingerprint: connection.client.fingerprint,
+      roleFingerprint: connection.client.roleFingerprint,
+      desktopFingerprint: this.desktopIdentity.fingerprint
     })
   }
 
@@ -307,6 +524,22 @@ export class MockDesktop {
       origin: request.__frameOrigin,
       connecting: request.__extensionConnecting === true
     })
+    if (connection.role === 'control' && request.__frameOrigin !== undefined) {
+      return connection.peer.close(1008)
+    }
+    if (connection.role === 'page') {
+      try {
+        const origin = new URL(request.__frameOrigin)
+        if (
+          !['http:', 'https:'].includes(origin.protocol) ||
+          origin.origin !== request.__frameOrigin
+        ) {
+          return connection.peer.close(1008)
+        }
+      } catch {
+        return connection.peer.close(1008)
+      }
+    }
     let result
     if (request.method === 'wallet_getEthereumChains') result = this.availableChains
     else if (request.method === 'web3_clientVersion') result = 'Wren/qualification'
@@ -327,6 +560,13 @@ export class MockDesktop {
         connection.peer.close(1012)
       }
     }
+  }
+
+  async replaceDesktopIdentity() {
+    this.desktopIdentity = await generateDesktopIdentity()
+    this.pairings.clear()
+    for (const connection of [...this.connections]) connection.peer.close(1012)
+    return this.desktopIdentity.fingerprint
   }
 
   async close() {
