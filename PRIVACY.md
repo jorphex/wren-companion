@@ -20,10 +20,10 @@ Companion and are governed by their respective policies.
 
 ## Local storage and browser access
 
-The companion stores a non-exportable P-256 pairing credential in browser
-IndexedDB. It identifies this extension installation to Wren, is not a wallet
-private key, and cannot sign blockchain transactions. It remains until the user
-resets the credential or removes the extension.
+The companion stores a nonextractable P-256 control/page key bundle and the pinned
+Wren installation identity in browser IndexedDB. They mutually authenticate the
+local connection, are not wallet private keys, and cannot sign blockchain
+transactions. They remain until the user resets pairing or removes the extension.
 
 An optional per-site setting that makes Wren appear as a legacy MetaMask
 provider is stored in that site's browser local storage. Request routing,

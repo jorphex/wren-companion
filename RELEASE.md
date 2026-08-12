@@ -10,10 +10,10 @@ require another browser-store submission.
 
 The release contains separate Chrome and Firefox Manifest V3 ZIPs. The Firefox
 package has its own add-on ID and matching reviewer-source ZIP; it neither
-claims nor updates the upstream Frame listings. Protocol 2 authenticates
-Companion to Wren, not Wren to Companion, so the same-user host account and
-localhost endpoint remain trusted. See [Security](SECURITY.md) and
-[Privacy](PRIVACY.md).
+claims nor updates the upstream Frame listings. Protocol 3 mutually authenticates
+the Wren installation and Companion control/page key bundle after explicit code
+comparison. A compromised host or browser profile remains inside the trusted
+computing base. See [Security](SECURITY.md) and [Privacy](PRIVACY.md).
 
 ## Local gate
 
@@ -55,7 +55,7 @@ or put test windows on the active desktop.
 1. Verify `SHA256SUMS` and GitHub attestations.
 2. Load the Chrome ZIP unpacked in current stable Chrome and the Firefox ZIP
    temporarily in current stable Firefox, using only disposable profiles.
-3. Pair each clean profile with a protocol-2 Wren desktop and compare the
+3. Pair each clean profile with a protocol-3 Wren desktop and compare the
    six-digit code in both interfaces.
 4. Confirm EIP-6963 and legacy discovery, connection approval, account and
    chain events, rejection, reconnect, extension reset, and desktop revocation.
