@@ -101,7 +101,14 @@ if (
   manifest.browser_specific_settings?.gecko?.id !== '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}' ||
   manifest.browser_specific_settings?.gecko?.strict_min_version !== '142.0' ||
   JSON.stringify(manifest.browser_specific_settings?.gecko?.data_collection_permissions) !==
-    JSON.stringify({ required: ['none'] })
+    JSON.stringify({
+      required: [
+        'financialAndPaymentInfo',
+        'authenticationInfo',
+        'browsingActivity',
+        'websiteContent'
+      ]
+    })
 ) {
   throw new Error('Firefox data-collection declaration is missing or incompatible')
 }

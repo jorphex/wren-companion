@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective: August 4, 2026
+Effective: August 15, 2026
 
 Wren Companion connects browser dapps to a Wren desktop wallet on the same
 computer. It has no analytics, advertising, telemetry, remote code,
@@ -13,6 +13,11 @@ which can contain account addresses, chain identifiers, messages, and proposed
 transactions. It routes them only between the requesting browser document and
 Wren at `ws://127.0.0.1:1248`; the extension does not send them to the
 maintainer or another third party.
+
+For browser-store disclosure purposes, this local routing can involve financial
+and payment information, authentication information, browsing activity, and
+website content. These labels describe the data types that can pass between a
+dapp and Wren; they do not mean the maintainer collects or receives that data.
 
 Wren desktop and a dapp may separately communicate with RPC endpoints or other
 services selected by their operators. Those communications are outside
@@ -40,6 +45,15 @@ state current.
 The maintainer does not collect, retain, sell, or share user data. All handling
 above occurs locally on the user's device, and the extension does not execute
 remotely hosted code.
+
+## Chrome Web Store Limited Use
+
+Wren Companion's use of information received from Chrome APIs is limited to
+providing its single purpose: connecting browser dapps to the user's locally
+running Wren wallet. It does not use or transfer that information for
+advertising, creditworthiness, lending, or any unrelated purpose. It does not
+sell user data or allow humans to read it. The only transfer is to the user's
+local Wren application when necessary to provide the requested wallet feature.
 
 For privacy reports, use the private contact method in [Security](SECURITY.md),
 or file a public issue when appropriate in the

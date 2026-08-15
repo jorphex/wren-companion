@@ -72,13 +72,30 @@ Privacy form answers:
   dapp origin, local pairing credential, and wallet RPC messages needed for its
   single purpose. It transmits them only to Wren on `127.0.0.1`; the maintainer
   does not collect or receive them. Certify all applicable limited-use
-  statements.
+  statements. The matching public Limited Use disclosure is in `PRIVACY.md`.
 
 Use `src/icons/icon128.png` as the approved Character-flat store icon. The matching
 `store-assets/promo-440x280.png` is usable for submission. Connected and
 pairing screenshots still need real paired-Wren captures. Do not publish
 historical Frame screenshots or reuse upstream-listing assets; they have no
 continuity with that listing.
+
+Required screenshot capture:
+
+- Capture at 1280x800 in a disposable browser profile with a disposable Wren
+  account and no other extensions, bookmarks, notifications, or personal data.
+- Primary screenshot: Companion connected to Wren, with both products visibly
+  identifiable and the popup fully legible.
+- Secondary screenshot: a disposable dapp request visible in Wren while the
+  Companion shows its connected state.
+- Optional third screenshot: account or network state reflected consistently in
+  the dapp, Companion, and Wren.
+- Never publish a usable pairing code, wallet address with funds, transaction
+  identifier, browser-profile detail, recovery material, or hardware-wallet
+  identifier. Reset the disposable pairing after capture.
+- Save final PNGs under `store-assets/screenshots/` and rerun package
+  verification. Store screenshots are listing assets and are intentionally not
+  embedded in the extension ZIP.
 
 Reviewer test steps:
 
@@ -102,8 +119,11 @@ and say that additional free software (Wren desktop) is required.
 When asked whether source is required, choose **Yes** and upload the matching
 reviewer-source ZIP. Put the reviewer test steps above in Notes for Reviewers,
 link to `MOZILLA_REVIEW.md` in the source archive, select GPL-3.0-only, provide
-the shared listing copy and privacy policy, and add source links for third-party
-libraries. Then submit for signing and review.
+the shared listing copy and privacy policy, and copy the third-party source links
+from `MOZILLA_REVIEW.md`. The manifest's required data-transmission categories
+are financial and payment information, authentication information, browsing
+activity, and website content; all transmission is only to local Wren and is
+necessary for the primary function. Then submit for signing and review.
 
 After Mozilla signs the version, install the signed file in regular Firefox and
 repeat pairing, connection, account/chain event, reset, and revocation checks
