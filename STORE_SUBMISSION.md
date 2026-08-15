@@ -74,7 +74,7 @@ Privacy form answers:
   does not collect or receive them. Certify all applicable limited-use
   statements.
 
-Use `src/icons/icon128.png` as the provisional store icon. The Wren-branded
+Use `src/icons/icon128.png` as the approved Character-flat store icon. The matching
 `store-assets/promo-440x280.png` is usable for submission. Connected and
 pairing screenshots still need real paired-Wren captures. Do not publish
 historical Frame screenshots or reuse upstream-listing assets; they have no

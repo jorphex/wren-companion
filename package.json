@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "brand:verify": "node scripts/verify-brand-assets.mjs",
     "verify": "npm test && npm run build && node scripts/verify-dist.mjs && npm run lint:webext",
     "lint:webext": "node scripts/lint-firefox.mjs",
     "package:browsers": "npm run verify && node scripts/package-browsers.mjs && npm run sbom:artifact && node scripts/write-checksums.mjs",
@@ -24,7 +25,7 @@
     "qualify:browser": "node scripts/qualify-browser.mjs",
     "sbom:artifact": "node scripts/generate-sbom.mjs",
     "sbom:verify": "node scripts/verify-sbom.mjs",
-    "build": "rimraf ./dist && webpack --config webpack.config.js && node ./src/copy-static.js",
+    "build": "npm run brand:verify && rimraf ./dist && webpack --config webpack.config.js && node ./src/copy-static.js",
     "build:firefox": "npm run build && node scripts/build-firefox.mjs && node scripts/verify-dist.mjs dist-firefox firefox",
     "bundle": "webpack --config webpack.config.js",
     "watch": "npm run build && webpack --config webpack.dev.config.js"

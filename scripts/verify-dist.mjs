@@ -33,6 +33,16 @@ if (missing.length || unexpected.length) {
   )
 }
 
+for (const file of extensionArtifactFiles.filter(
+  (entry) => entry === 'icon.png' || entry.startsWith('icons/')
+)) {
+  const [source, packaged] = await Promise.all([
+    readFile(new URL(`../src/${file}`, import.meta.url)),
+    readFile(join(root, file))
+  ])
+  if (!source.equals(packaged)) throw new Error(`${file} differs from its reviewed source asset`)
+}
+
 const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'))
 const packageFile = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
 
