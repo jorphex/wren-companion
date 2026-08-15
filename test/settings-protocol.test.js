@@ -12,6 +12,20 @@ test('normalizes desktop chain metadata to canonical RPC quantities', async () =
   }
 })
 
+test('preserves the full active-page origin, including a non-default port', async () => {
+  const { parsePageOrigin } = await protocol
+  assert.deepEqual(parsePageOrigin('http://top.wren-demo.local:34987/path?q=1'), {
+    protocol: 'http://',
+    origin: 'top.wren-demo.local:34987'
+  })
+  assert.deepEqual(parsePageOrigin('https://app.example/path'), {
+    protocol: 'https://',
+    origin: 'app.example'
+  })
+  assert.deepEqual(parsePageOrigin('about:blank'), { protocol: 'about:', origin: 'blank' })
+  assert.deepEqual(parsePageOrigin('not a url'), { protocol: '', origin: 'not a url' })
+})
+
 test('accepts only bounded companion authentication state', async () => {
   const { parseAuthenticationState } = await protocol
   assert.deepEqual(parseAuthenticationState({ status: 'pairing', pairingCode: '123456' }), {

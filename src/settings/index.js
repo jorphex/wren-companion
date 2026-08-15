@@ -5,7 +5,7 @@ import styled from 'styled-components'
 
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
 import { getChainColorToken } from './chain-identity.mjs'
-import { parseAuthenticationState, toRpcChainId } from './protocol.mjs'
+import { parseAuthenticationState, parsePageOrigin, toRpcChainId } from './protocol.mjs'
 
 const APPEAR_AS_MM = '__frameAppearAsMM__'
 
@@ -585,19 +585,6 @@ const ChainButtonControl = styled.button`
     opacity: 0.62;
   }
 `
-
-const originDomainRegex = /^(?<protocol>.+:(?:\/\/)?)(?<origin>[^#/]*)/
-
-function parseOrigin(url = '') {
-  const m = url.match(originDomainRegex)
-
-  if (!m) {
-    console.warn('Could not parse active-tab origin')
-    return url
-  }
-
-  return m.groups || { origin: url, protocol: '' }
-}
 
 const chainConnected = ({ connected }) => connected === undefined || connected
 
@@ -1272,7 +1259,7 @@ class _Settings extends React.Component {
       tab: { url },
       isSupportedTab
     } = this.props
-    const { protocol, origin } = parseOrigin(url)
+    const { protocol, origin } = parsePageOrigin(url)
 
     if (desktopStatus === 'checking') {
       return this.checking()

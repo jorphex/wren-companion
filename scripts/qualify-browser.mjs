@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { lstat, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
 import os from 'node:os'
@@ -20,6 +20,9 @@ import {
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const qualificationFailureDirectory = path.join(projectRoot, 'artifacts', 'qualification-failures')
+const qualificationExportDirectory = process.env.WREN_COMPANION_QUALIFICATION_EXPORT
+  ? path.resolve(process.env.WREN_COMPANION_QUALIFICATION_EXPORT)
+  : undefined
 const availableChains = Array.from({ length: 18 }, (_, index) => ({
   chainId: index + 1,
   name:
@@ -29,6 +32,12 @@ const availableChains = Array.from({ length: 18 }, (_, index) => ({
   connected: true,
   isTestnet: index > 0
 }))
+const storeCaptureChains = [
+  { chainId: 1, name: 'Ethereum', connected: true, isTestnet: false },
+  { chainId: 10, name: 'Optimism', connected: true, isTestnet: false },
+  { chainId: 8453, name: 'Base', connected: true, isTestnet: false },
+  { chainId: 42161, name: 'Arbitrum One', connected: true, isTestnet: false }
+]
 const browserArgument = process.argv.find((argument) => argument.startsWith('--browser='))
 const requestedBrowser = browserArgument?.split('=')[1] || 'all'
 const defaultWaitTimeout = process.env.CI ? 45_000 : 20_000
@@ -90,7 +99,10 @@ class QualificationSite {
       this.server.listen(0, '127.0.0.1', resolve)
     })
     this.port = this.server.address().port
-    this.origin = `http://127.0.0.1:${this.port}`
+    const hostname = qualificationExportDirectory
+      ? `${this.kind === 'top' ? 'dapp' : 'frame'}.wren-demo.local`
+      : '127.0.0.1'
+    this.origin = `http://${hostname}:${this.port}`
   }
 
   html(frameOrigin) {
@@ -243,6 +255,36 @@ async function writeFailureScreenshot(browser, state, zoom, image) {
   const filename = `${browser}-${state}-${String(zoom).replace('.', '_')}.png`
   await writeFile(path.join(qualificationFailureDirectory, filename), Buffer.from(image, 'base64'))
   return path.join(qualificationFailureDirectory, filename)
+}
+
+async function writeQualificationScreenshot(browser, state, image) {
+  if (!qualificationExportDirectory) return
+  const stats = await lstat(qualificationExportDirectory)
+  if (
+    !stats.isDirectory() ||
+    stats.isSymbolicLink() ||
+    (process.platform !== 'win32' && (stats.mode & 0o777) !== 0o700)
+  ) {
+    throw new Error('Companion qualification export must be a private mode-0700 directory')
+  }
+  const target = path.join(qualificationExportDirectory, `${browser}-${state}.png`)
+  await writeFile(target, Buffer.from(image, 'base64'), { mode: 0o600 })
+}
+
+async function captureChromeQualificationScreenshot(settings, state) {
+  if (!qualificationExportDirectory) return
+  await settings.evaluate(`(() => {
+    document.documentElement.style.zoom = '1';
+    document.scrollingElement.scrollTop = 0;
+    document.scrollingElement.scrollLeft = 0;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  })()`)
+  const screenshot = await settings.client.send(
+    'Page.captureScreenshot',
+    { format: 'png', captureBeyondViewport: false, fromSurface: true },
+    settings.sessionId
+  )
+  await writeQualificationScreenshot('chrome', state, screenshot.data)
 }
 
 async function qualifyChromePopupLayout(settings, state) {
@@ -432,6 +474,12 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       '--disable-sync',
       '--metrics-recording-only',
       '--no-first-run',
+      ...(qualificationExportDirectory
+        ? [
+            '--host-resolver-rules=MAP dapp.wren-demo.local 127.0.0.1, MAP frame.wren-demo.local 127.0.0.1',
+            '--no-proxy-server'
+          ]
+        : []),
       '--remote-debugging-port=0',
       `--user-data-dir=${profile}`,
       `--disable-extensions-except=${extension}`,
@@ -532,6 +580,33 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await settings.evaluate(
       `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Keep current identity').click()`
     )
+    if (qualificationExportDirectory) {
+      await settings.close()
+      desktop.availableChains = storeCaptureChains
+      await cdp.send(
+        'Runtime.evaluate',
+        {
+          expression: `chrome.alarms.create('check-client-status', { when: Date.now() + 50 })`
+        },
+        workerTarget.sessionId
+      )
+      await delay(250)
+      settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'store capture')
+      await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 4`)
+      await captureChromeQualificationScreenshot(settings, 'connected')
+      await settings.close()
+      desktop.availableChains = availableChains
+      await cdp.send(
+        'Runtime.evaluate',
+        {
+          expression: `chrome.alarms.create('check-client-status', { when: Date.now() + 50 })`
+        },
+        workerTarget.sessionId
+      )
+      await delay(250)
+      settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'credential reset')
+      await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    }
     const oldFingerprints = new Set(
       desktop.authentications
         .filter(({ browser }) => browser === 'chrome')
@@ -804,7 +879,7 @@ async function qualify(browser) {
     )
   } finally {
     await Promise.allSettled([desktop.close(), top.close(), frame.close()])
-    await rm(root, { recursive: true, force: true })
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })
   }
 }
 

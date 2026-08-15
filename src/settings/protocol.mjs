@@ -3,6 +3,19 @@ function toRpcChainId(value) {
   return `0x${value.toString(16)}`
 }
 
+function parsePageOrigin(value = '') {
+  try {
+    const parsed = new globalThis.URL(value)
+    const hasAuthority = value.startsWith(`${parsed.protocol}//`)
+    return {
+      protocol: hasAuthority ? `${parsed.protocol}//` : parsed.protocol,
+      origin: hasAuthority ? parsed.host : parsed.pathname
+    }
+  } catch {
+    return { protocol: '', origin: value }
+  }
+}
+
 const simpleAuthenticationStatuses = new Set([
   'authenticating',
   'disconnected',
@@ -40,4 +53,4 @@ function parseAuthenticationState(value) {
   return { status: 'disconnected' }
 }
 
-export { parseAuthenticationState, toRpcChainId }
+export { parseAuthenticationState, parsePageOrigin, toRpcChainId }
