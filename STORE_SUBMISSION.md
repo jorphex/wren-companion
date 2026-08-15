@@ -75,27 +75,27 @@ Privacy form answers:
   statements. The matching public Limited Use disclosure is in `PRIVACY.md`.
 
 Use `src/icons/icon128.png` as the approved Character-flat store icon. The matching
-`store-assets/promo-440x280.png` is usable for submission. Connected and
-pairing screenshots still need real paired-Wren captures. Do not publish
-historical Frame screenshots or reuse upstream-listing assets; they have no
-continuity with that listing.
+`store-assets/promo-440x280.png` and both versioned PNGs in
+`store-assets/screenshots/` are ready for submission. They are composed from
+isolated, deterministic captures of the actual Companion and Wren renderers;
+all displayed account, connection, origin, and transaction details are synthetic
+qualification fixtures. Do not publish historical Frame screenshots or reuse
+upstream-listing assets; they have no continuity with that listing.
 
-Required screenshot capture:
+Screenshot regeneration:
 
-- Capture at 1280x800 in a disposable browser profile with a disposable Wren
-  account and no other extensions, bookmarks, notifications, or personal data.
-- Primary screenshot: Companion connected to Wren, with both products visibly
-  identifiable and the popup fully legible.
-- Secondary screenshot: a disposable dapp request visible in Wren while the
-  Companion shows its connected state.
-- Optional third screenshot: account or network state reflected consistently in
-  the dapp, Companion, and Wren.
-- Never publish a usable pairing code, wallet address with funds, transaction
-  identifier, browser-profile detail, recovery material, or hardware-wallet
-  identifier. Reset the disposable pairing after capture.
-- Save final PNGs under `store-assets/screenshots/` and rerun package
-  verification. Store screenshots are listing assets and are intentionally not
-  embedded in the extension ZIP.
+- Generate the connected Companion source capture in a private directory with
+  `WREN_COMPANION_QUALIFICATION_EXPORT=<directory> npm run qualify:browser -- --browser=chrome`.
+- Generate the two Wren source captures through Wren's isolated Xvfb UI
+  qualification using scenarios `dash-settings-local-connections-full-1` and
+  `tray-transaction-method-verified-full-1.5`.
+- Copy the reviewed source captures to `store-assets/source/`, then run
+  `npm run store:screenshots` and `npm run brand:verify`.
+- Never replace the synthetic fixtures with a usable pairing code, funded wallet
+  address, real transaction identifier, browser-profile detail, recovery
+  material, or hardware-wallet identifier.
+- Store screenshots are listing assets and are intentionally not embedded in the
+  extension ZIP.
 
 Reviewer test steps:
 

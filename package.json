@@ -17,6 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "brand:verify": "node scripts/verify-brand-assets.mjs",
+    "store:screenshots": "node scripts/generate-store-screenshots.mjs",
     "verify": "npm test && npm run build && node scripts/verify-dist.mjs && npm run lint:webext",
     "lint:webext": "node scripts/lint-firefox.mjs",
     "package:browsers": "npm run verify && node scripts/package-browsers.mjs && npm run sbom:artifact && node scripts/write-checksums.mjs",

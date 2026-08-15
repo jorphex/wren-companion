@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 
 const iconDimensions = new Map([
   ['src/icon.png', 512],
@@ -14,6 +14,14 @@ const iconDimensions = new Map([
   ['src/icons/icon96.png', 96],
   ['src/icons/icon96good.png', 96],
   ['src/icons/icon96moon.png', 96]
+])
+const storeImageDimensions = new Map([
+  ['store-assets/promo-440x280.png', [440, 280]],
+  ['store-assets/screenshots/wren-companion-store-connected-v4.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-review-v4.png', [1280, 800]],
+  ['store-assets/source/companion-connected.png', [420, 418]],
+  ['store-assets/source/wren-local-connections.png', [620, 900]],
+  ['store-assets/source/wren-request-review.png', [930, 1350]]
 ])
 
 const pngDimensions = (data) => {
@@ -29,6 +37,17 @@ for (const [file, expectedSize] of iconDimensions) {
   const data = await readFile(file)
   assert.deepEqual(pngDimensions(data), [expectedSize, expectedSize], `${file} has the wrong size`)
 }
+
+for (const [file, expectedDimensions] of storeImageDimensions) {
+  const data = await readFile(file)
+  assert.deepEqual(pngDimensions(data), expectedDimensions, `${file} has the wrong size`)
+}
+
+assert.deepEqual(
+  (await readdir('store-assets/screenshots')).sort(),
+  ['wren-companion-store-connected-v4.png', 'wren-companion-store-review-v4.png'],
+  'Store screenshot inventory contains stale or missing assets'
+)
 
 const canonical = await readFile('src/icon.png')
 const canonicalHash = createHash('sha256').update(canonical).digest('hex')
