@@ -5,10 +5,10 @@ The screenshots are composed from isolated qualification captures of the actual
 Wren and Companion renderers, not from a daily browser profile or wallet.
 
 The current Wren source captures came from desktop commit
-`608d5aafbc6f452d9d4634385b5fcc2c421820ef`. Their account, connection,
+`a65d5e0ac4ee6360de3b1d450bc37c7a33b4aa65`. Their account, connection,
 origin, network, contract, address, and amount values are deterministic workshop
 fixtures with no authority or funds. The Companion capture came from commit
-`4404b42` and a private disposable browser profile.
+`e4b724f` and a private disposable browser profile.
 
 Run `npm run store:screenshots` to compose the reviewed source captures into the
 two versioned Chrome Web Store PNGs. `npm run brand:verify` checks their exact

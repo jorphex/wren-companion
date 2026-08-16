@@ -42,7 +42,7 @@ const styles = `
     background:
       radial-gradient(circle at 76% 22%, rgba(186, 139, 81, .12), transparent 35%),
       radial-gradient(circle at 10% 90%, rgba(92, 126, 105, .12), transparent 36%),
-      #0b0f0d;
+      #070907;
   }
   .canvas { position: relative; width: 1280px; height: 800px; padding: 52px 64px; }
   .brand { display: flex; align-items: center; gap: 16px; color: #d7e4dc; font-size: 16px; font-weight: 650; }
@@ -50,7 +50,7 @@ const styles = `
   h1 { margin: 23px 0 9px; font-size: 43px; line-height: 1.08; letter-spacing: -.035em; font-weight: 680; }
   .lede { margin: 0; max-width: 820px; color: #aebbb3; font-size: 18px; line-height: 1.5; }
   .stage { position: absolute; left: 64px; right: 64px; bottom: 48px; height: 490px; }
-  .panel { position: absolute; overflow: hidden; border: 1px solid #344139; border-radius: 22px; background: #070b09; box-shadow: 0 24px 70px rgba(0,0,0,.42); }
+  .panel { position: absolute; overflow: hidden; border: 1px solid #344139; border-radius: 22px; background: #070907; box-shadow: 0 24px 70px rgba(0,0,0,.42); }
   .label { position: absolute; z-index: 3; top: 15px; left: 18px; padding: 8px 11px; border: 1px solid #3b4a40; border-radius: 999px; color: #dbe7df; background: rgba(12,17,14,.92); font-size: 13px; font-weight: 630; }
   .panel img { display: block; }
   .companion { right: 20px; top: 30px; width: 458px; height: 460px; padding-top: 42px; }
@@ -59,27 +59,32 @@ const styles = `
   .connections img { width: 610px; }
   .review { left: 12px; top: 0; width: 610px; height: 485px; padding-top: 42px; }
   .review img { width: 610px; }
-  .flow { position: absolute; left: 558px; top: 190px; width: 110px; color: #c79a60; text-align: center; font-size: 35px; }
+  .link { position: absolute; height: 1px; background: linear-gradient(90deg, #344139, #596a60, #344139); }
+  .link::before, .link::after { content: ''; position: absolute; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: #596a60; }
+  .link::before { left: -2px; }
+  .link::after { right: -2px; }
+  .link-connected { left: 630px; top: 247px; width: 44px; }
+  .link-review { left: 622px; top: 251px; width: 52px; }
 `
 
 const pages = [
   {
-    file: 'wren-companion-store-connected-v4.png',
-    title: 'Your browser, connected to Wren',
-    lede: 'Use Ethereum and EVM dapps while accounts, approvals, and transaction review stay in the desktop wallet.',
+    file: 'wren-companion-store-connected-v9.png',
+    title: 'Leave it to Wren',
+    lede: 'Your accounts, approvals, and transaction review stay in Wren.',
     body: `
       <div class="panel connections"><div class="label">Wren desktop</div><img src="${assets.connections}"></div>
-      <div class="flow">↔</div>
+      <div class="link link-connected" aria-hidden="true"></div>
       <div class="panel companion"><div class="label">Browser Companion</div><img src="${assets.companion}"></div>
     `
   },
   {
-    file: 'wren-companion-store-review-v4.png',
-    title: 'Review every request in Wren',
-    lede: 'The Companion routes each dapp request to Wren, where you can inspect the network, method, contract, and effects before acting.',
+    file: 'wren-companion-store-review-v9.png',
+    title: 'A clearer view',
+    lede: 'Wren lays out contracts, methods, and effects before you act.',
     body: `
       <div class="panel review"><div class="label">Request review</div><img src="${assets.review}"></div>
-      <div class="flow">←</div>
+      <div class="link link-review" aria-hidden="true"></div>
       <div class="panel companion"><div class="label">Companion connected</div><img src="${assets.companion}"></div>
     `
   }

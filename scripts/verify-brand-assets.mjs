@@ -17,8 +17,8 @@ const iconDimensions = new Map([
 ])
 const storeImageDimensions = new Map([
   ['store-assets/promo-440x280.png', [440, 280]],
-  ['store-assets/screenshots/wren-companion-store-connected-v4.png', [1280, 800]],
-  ['store-assets/screenshots/wren-companion-store-review-v4.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-connected-v9.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-review-v9.png', [1280, 800]],
   ['store-assets/source/companion-connected.png', [420, 418]],
   ['store-assets/source/wren-local-connections.png', [620, 900]],
   ['store-assets/source/wren-request-review.png', [930, 1350]]
@@ -45,7 +45,7 @@ for (const [file, expectedDimensions] of storeImageDimensions) {
 
 assert.deepEqual(
   (await readdir('store-assets/screenshots')).sort(),
-  ['wren-companion-store-connected-v4.png', 'wren-companion-store-review-v4.png'],
+  ['wren-companion-store-connected-v9.png', 'wren-companion-store-review-v9.png'],
   'Store screenshot inventory contains stale or missing assets'
 )
 

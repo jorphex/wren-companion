@@ -75,7 +75,7 @@ Privacy form answers:
   statements. The matching public Limited Use disclosure is in `PRIVACY.md`.
 
 Use `src/icons/icon128.png` as the approved Character-flat store icon. The matching
-`store-assets/promo-440x280.png` and both versioned PNGs in
+`store-assets/promo-440x280.png` and both v9 PNGs in
 `store-assets/screenshots/` are ready for submission. They are composed from
 isolated, deterministic captures of the actual Companion and Wren renderers;
 all displayed account, connection, origin, and transaction details are synthetic
