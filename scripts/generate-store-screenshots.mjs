@@ -55,9 +55,10 @@ const styles = `
   .panel img { display: block; }
   .companion { right: 20px; top: 30px; width: 458px; height: 460px; padding-top: 42px; }
   .companion img { width: 420px; margin: 0 auto; }
-  .connections { left: 20px; top: 60px; width: 610px; height: 350px; padding-top: 44px; }
-  .connections img { width: 610px; }
-  .review { left: 12px; top: 0; width: 610px; height: 485px; padding-top: 42px; }
+  .connections { left: 20px; top: 60px; width: 610px; height: 350px; }
+  .connections-capture { height: 350px; overflow: hidden; }
+  .connections-capture img { width: 610px; }
+  .review { left: 12px; top: 0; width: 610px; height: 485px; }
   .review img { width: 610px; }
   .link { position: absolute; height: 1px; background: linear-gradient(90deg, #344139, #596a60, #344139); }
   .link::before, .link::after { content: ''; position: absolute; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: #596a60; }
@@ -69,21 +70,21 @@ const styles = `
 
 const pages = [
   {
-    file: 'wren-companion-store-connected-v9.png',
+    file: 'wren-companion-store-connected-v12.png',
     title: 'Leave it to Wren',
     lede: 'Your accounts, approvals, and transaction review stay in Wren.',
     body: `
-      <div class="panel connections"><div class="label">Wren desktop</div><img src="${assets.connections}"></div>
+      <div class="panel connections"><div class="connections-capture"><img src="${assets.connections}"></div></div>
       <div class="link link-connected" aria-hidden="true"></div>
       <div class="panel companion"><div class="label">Browser Companion</div><img src="${assets.companion}"></div>
     `
   },
   {
-    file: 'wren-companion-store-review-v9.png',
+    file: 'wren-companion-store-review-v12.png',
     title: 'A clearer view',
     lede: 'Wren lays out contracts, methods, and effects before you act.',
     body: `
-      <div class="panel review"><div class="label">Request review</div><img src="${assets.review}"></div>
+      <div class="panel review"><img src="${assets.review}"></div>
       <div class="link link-review" aria-hidden="true"></div>
       <div class="panel companion"><div class="label">Companion connected</div><img src="${assets.companion}"></div>
     `

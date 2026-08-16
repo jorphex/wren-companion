@@ -8,7 +8,7 @@ The current Wren source captures came from desktop commit
 `a65d5e0ac4ee6360de3b1d450bc37c7a33b4aa65`. Their account, connection,
 origin, network, contract, address, and amount values are deterministic workshop
 fixtures with no authority or funds. The Companion capture came from commit
-`e4b724f` and a private disposable browser profile.
+`ca86392` and a private disposable browser profile.
 
 Run `npm run store:screenshots` to compose the reviewed source captures into the
 two versioned Chrome Web Store PNGs. `npm run brand:verify` checks their exact
