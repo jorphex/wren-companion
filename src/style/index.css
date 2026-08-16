@@ -78,7 +78,18 @@ body {
   width: 420px;
   min-width: 320px;
   color: var(--wren-text-primary);
-  background: var(--wren-bg-canvas);
+  background-color: var(--wren-bg-canvas);
+  background-image:
+    url('./wren-grain.svg'),
+    radial-gradient(ellipse 94% 58% at 2% -8%, rgba(126, 155, 115, 0.065), transparent 70%),
+    radial-gradient(ellipse 82% 54% at 102% 54%, rgba(166, 138, 97, 0.05), transparent 72%),
+    radial-gradient(ellipse 72% 42% at 12% 104%, rgba(111, 91, 126, 0.035), transparent 74%);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  background-size:
+    144px 144px,
+    100% 100%,
+    100% 100%,
+    100% 100%;
   font-size: 14px;
   font-weight: 430;
 }

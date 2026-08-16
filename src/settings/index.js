@@ -113,7 +113,7 @@ const SettingsScroll = styled.main`
   overflow-y: auto;
   box-sizing: border-box;
   max-height: 600px;
-  background: var(--wren-bg-canvas);
+  background: transparent;
 
   > * {
     flex: none;

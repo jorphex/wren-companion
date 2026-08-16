@@ -13,7 +13,13 @@ const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf
 
 test('Companion shares Wren’s wallet canvas', () => {
   assert.match(globalStyle, /--wren-bg-canvas:\s*#070907;/u)
-  assert.match(globalStyle, /body \{[\s\S]*background:\s*var\(--wren-bg-canvas\);/u)
+  assert.match(globalStyle, /body \{[\s\S]*background-color:\s*var\(--wren-bg-canvas\);/u)
+  assert.match(globalStyle, /url\('\.\/wren-grain\.svg'\)/u)
+  assert.match(globalStyle, /radial-gradient/u)
+  assert.match(
+    settingsSource,
+    /const SettingsScroll = styled\.main`[\s\S]*background:\s*transparent;/u
+  )
 })
 
 test('popup bootstrap sizing does not depend on its provisional viewport', () => {
