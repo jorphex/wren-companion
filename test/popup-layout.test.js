@@ -11,6 +11,11 @@ const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'ut
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
 const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
 
+test('Companion shares Wren’s wallet canvas', () => {
+  assert.match(globalStyle, /--wren-bg-canvas:\s*#070907;/u)
+  assert.match(globalStyle, /body \{[\s\S]*background:\s*var\(--wren-bg-canvas\);/u)
+})
+
 test('popup bootstrap sizing does not depend on its provisional viewport', () => {
   const bodyStyle = globalStyle
     .match(/(?:^|\n)body \{[\s\S]*?\n\}/gu)
