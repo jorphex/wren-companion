@@ -23,6 +23,17 @@ const qualificationFailureDirectory = path.join(projectRoot, 'artifacts', 'quali
 const qualificationExportDirectory = process.env.WREN_COMPANION_QUALIFICATION_EXPORT
   ? path.resolve(process.env.WREN_COMPANION_QUALIFICATION_EXPORT)
   : undefined
+const storeDappUrl = process.env.WREN_COMPANION_STORE_DAPP_URL
+if (storeDappUrl) {
+  assert.ok(qualificationExportDirectory, 'Store dapp capture requires a qualification export')
+  const parsedStoreDappUrl = new URL(storeDappUrl)
+  assert.equal(parsedStoreDappUrl.protocol, 'https:', 'Store dapp capture must use HTTPS')
+  assert.equal(
+    parsedStoreDappUrl.hostname,
+    'app.uniswap.org',
+    'Store dapp capture is restricted to the reviewed Uniswap example'
+  )
+}
 const availableChains = Array.from({ length: 18 }, (_, index) => ({
   chainId: index + 1,
   name:
@@ -271,6 +282,13 @@ async function writeQualificationScreenshot(browser, state, image) {
   await writeFile(target, Buffer.from(image, 'base64'), { mode: 0o600 })
 }
 
+async function writeQualificationPairingCode(browser, pairingCode) {
+  if (!qualificationExportDirectory) return
+  assert.match(pairingCode, /^\d{6}$/u, 'qualification pairing code')
+  const target = path.join(qualificationExportDirectory, `${browser}-pairing-code.txt`)
+  await writeFile(target, `${pairingCode}\n`, { mode: 0o600 })
+}
+
 async function captureChromeQualificationScreenshot(settings, state) {
   if (!qualificationExportDirectory) return
   await settings.evaluate(`(() => {
@@ -279,9 +297,14 @@ async function captureChromeQualificationScreenshot(settings, state) {
     document.scrollingElement.scrollLeft = 0;
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   })()`)
+  await delay(100)
+  const clip = await settings.evaluate(`(() => {
+    const rect = document.body.getBoundingClientRect();
+    return { x: 0, y: 0, width: Math.ceil(rect.width), height: Math.ceil(rect.height), scale: 1 };
+  })()`)
   const screenshot = await settings.client.send(
     'Page.captureScreenshot',
-    { format: 'png', captureBeyondViewport: false, fromSurface: true },
+    { format: 'png', captureBeyondViewport: true, fromSurface: true, clip },
     settings.sessionId
   )
   await writeQualificationScreenshot('chrome', state, screenshot.data)
@@ -476,8 +499,10 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       '--no-first-run',
       ...(qualificationExportDirectory
         ? [
+            '--force-device-scale-factor=1',
+            '--window-size=1280,800',
             '--host-resolver-rules=MAP dapp.wren-demo.local 127.0.0.1, MAP frame.wren-demo.local 127.0.0.1',
-            '--no-proxy-server'
+            ...(storeDappUrl ? ['--disable-http2', '--disable-quic'] : ['--no-proxy-server'])
           ]
         : []),
       '--remote-debugging-port=0',
@@ -507,6 +532,11 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     let settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'pairing')
     await settings.waitFor(`document.body.textContent.includes('Pair this Companion')`)
     await qualifyChromePopupLayout(settings, 'pairing')
+    if (qualificationExportDirectory) {
+      const pairingCode = await settings.evaluate(`document.body.textContent.replace(/\\D/gu, '')`)
+      await captureChromeQualificationScreenshot(settings, 'pairing')
+      await writeQualificationPairingCode('chrome', pairingCode)
+    }
     await settings.close()
 
     desktop.releaseAuthentication()
@@ -583,6 +613,31 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     if (qualificationExportDirectory) {
       await settings.close()
       desktop.availableChains = storeCaptureChains
+      if (storeDappUrl) {
+        await cdp.send('Page.navigate', { url: storeDappUrl }, page.sessionId)
+        await page.waitFor(`location.hostname === 'app.uniswap.org'`, 45_000)
+        await page.evaluate(`new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Wren provider announcement timed out')), 10000);
+          const onProvider = async (event) => {
+            if (event.detail?.info?.rdns !== 'io.github.jorphex.wren') return;
+            window.removeEventListener('eip6963:announceProvider', onProvider);
+            clearTimeout(timeout);
+            try {
+              resolve(await event.detail.provider.request({ method: 'eth_chainId' }));
+            } catch (error) {
+              reject(error);
+            }
+          };
+          window.addEventListener('eip6963:announceProvider', onProvider);
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+        })`)
+        await waitFor(
+          () => desktop.requests.some(({ origin }) => origin === new URL(storeDappUrl).origin),
+          'store dapp provider request',
+          45_000
+        )
+        await delay(4_000)
+      }
       await cdp.send(
         'Runtime.evaluate',
         {

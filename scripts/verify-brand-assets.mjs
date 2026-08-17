@@ -17,10 +17,13 @@ const iconDimensions = new Map([
 ])
 const storeImageDimensions = new Map([
   ['store-assets/promo-440x280.png', [440, 280]],
-  ['store-assets/screenshots/wren-companion-store-connected-v13.png', [1280, 800]],
-  ['store-assets/screenshots/wren-companion-store-review-v13.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-connected-v14.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-pairing-v14.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-review-v14.png', [1280, 800]],
   ['store-assets/source/companion-connected.png', [420, 418]],
-  ['store-assets/source/wren-local-connections.png', [620, 900]],
+  ['store-assets/source/companion-pairing.png', [420, 239]],
+  ['store-assets/source/uniswap-home.png', [1280, 800]],
+  ['store-assets/source/wren-native-pairing.png', [620, 900]],
   ['store-assets/source/wren-request-review.png', [930, 1350]]
 ])
 
@@ -45,8 +48,24 @@ for (const [file, expectedDimensions] of storeImageDimensions) {
 
 assert.deepEqual(
   (await readdir('store-assets/screenshots')).sort(),
-  ['wren-companion-store-connected-v13.png', 'wren-companion-store-review-v13.png'],
+  [
+    'wren-companion-store-connected-v14.png',
+    'wren-companion-store-pairing-v14.png',
+    'wren-companion-store-review-v14.png'
+  ],
   'Store screenshot inventory contains stale or missing assets'
+)
+
+assert.deepEqual(
+  (await readdir('store-assets/source')).sort(),
+  [
+    'companion-connected.png',
+    'companion-pairing.png',
+    'uniswap-home.png',
+    'wren-native-pairing.png',
+    'wren-request-review.png'
+  ],
+  'Store screenshot source inventory contains stale or missing assets'
 )
 
 const canonical = await readFile('src/icon.png')

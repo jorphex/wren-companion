@@ -94,20 +94,37 @@ Privacy form answers:
 Use `src/icons/icon128.png` as the approved Character-flat store icon. It keeps
 the square artwork inside Chrome's 96-by-96 safe area on a transparent 128px
 canvas; regenerate it with `npm run store:icon`. The matching
-`store-assets/promo-440x280.png` and both v13 PNGs in
+`store-assets/promo-440x280.png` and all three v14 PNGs in
 `store-assets/screenshots/` are ready for submission. They are composed from
-isolated, deterministic captures of the actual Companion and Wren renderers;
-all displayed account, connection, origin, and transaction details are synthetic
-qualification fixtures. Do not publish historical Frame screenshots or reuse
-upstream-listing assets; they have no continuity with that listing.
+isolated captures of the actual Companion and Wren renderers. Pairing,
+connection, address, and transaction details come from disposable qualification
+fixtures with no authority or funds. Uniswap is shown only as a recognizable
+public dapp example; Wren is not affiliated with Uniswap. Do not publish
+historical Frame screenshots or reuse upstream-listing assets; they have no
+continuity with that listing.
 
 Screenshot regeneration:
 
-- Generate the connected Companion source capture in a private directory with
-  `WREN_COMPANION_QUALIFICATION_EXPORT=<directory> npm run qualify:browser -- --browser=chrome`.
-- Generate the two Wren source captures through Wren's isolated Xvfb UI
-  qualification using scenarios `dash-settings-local-connections-full-1` and
+- Generate the pairing and connected Companion source captures in a private
+  mode-0700 directory:
+
+  ```sh
+  WREN_COMPANION_QUALIFICATION_EXPORT=<directory> \
+    WREN_COMPANION_STORE_DAPP_URL=https://app.uniswap.org/ \
+    npm run qualify:browser -- --browser=chrome
+  ```
+
+  The optional dapp URL is restricted to this reviewed HTTPS example and is
+  used only after the normal local qualification assertions pass.
+
+- Read the disposable six-digit code from the Companion export, then generate
+  matching Wren source captures through Wren's isolated Xvfb UI qualification
+  with `WREN_UI_QUALIFICATION_PAIRING_CODE=<six digits>` and scenarios
+  `tray-native-pairing-full-1` and
   `tray-transaction-method-verified-full-1.5`.
+- Refresh `store-assets/source/uniswap-home.png` only from a clean disposable
+  browser profile. Review the page for account, wallet, notification, and
+  browser-profile details before retaining it.
 - Copy the reviewed source captures to `store-assets/source/`, then run
   `npm run store:screenshots` and `npm run brand:verify`.
 - Never replace the synthetic fixtures with a usable pairing code, funded wallet
