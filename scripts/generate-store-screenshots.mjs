@@ -25,7 +25,7 @@ const assets = {
   companion: await data(path.join(source, 'companion-connected.png'), 'image/png'),
   connections: await data(path.join(source, 'wren-local-connections.png'), 'image/png'),
   review: await data(path.join(source, 'wren-request-review.png'), 'image/png'),
-  icon: await data(path.join(root, 'src', 'icons', 'icon128.png'), 'image/png'),
+  icon: await data(path.join(root, 'src', 'icon.png'), 'image/png'),
   font: await data(
     path.join(root, 'src', 'fonts', 'Recursive', 'Recursive_VF_1.085.woff2'),
     'font/woff2'
@@ -51,10 +51,9 @@ const styles = `
   .lede { margin: 0; max-width: 820px; color: #aebbb3; font-size: 18px; line-height: 1.5; }
   .stage { position: absolute; left: 64px; right: 64px; bottom: 48px; height: 490px; }
   .panel { position: absolute; overflow: hidden; border: 1px solid #344139; border-radius: 22px; background: #070907; box-shadow: 0 24px 70px rgba(0,0,0,.42); }
-  .label { position: absolute; z-index: 3; top: 15px; left: 18px; padding: 8px 11px; border: 1px solid #3b4a40; border-radius: 999px; color: #dbe7df; background: rgba(12,17,14,.92); font-size: 13px; font-weight: 630; }
   .panel img { display: block; }
-  .companion { right: 20px; top: 30px; width: 458px; height: 460px; padding-top: 42px; }
-  .companion img { width: 420px; margin: 0 auto; }
+  .companion { right: 39px; top: 51px; width: 420px; height: 418px; }
+  .companion img { width: 420px; }
   .connections { left: 20px; top: 60px; width: 610px; height: 350px; }
   .connections-capture { height: 350px; overflow: hidden; }
   .connections-capture img { width: 610px; }
@@ -64,29 +63,29 @@ const styles = `
   .link::before, .link::after { content: ''; position: absolute; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: #596a60; }
   .link::before { left: -2px; }
   .link::after { right: -2px; }
-  .link-connected { left: 630px; top: 247px; width: 44px; }
-  .link-review { left: 622px; top: 251px; width: 52px; }
+  .link-connected { left: 630px; top: 247px; width: 63px; }
+  .link-review { left: 622px; top: 251px; width: 71px; }
 `
 
 const pages = [
   {
-    file: 'wren-companion-store-connected-v12.png',
+    file: 'wren-companion-store-connected-v13.png',
     title: 'Leave it to Wren',
     lede: 'Your accounts, approvals, and transaction review stay in Wren.',
     body: `
       <div class="panel connections"><div class="connections-capture"><img src="${assets.connections}"></div></div>
       <div class="link link-connected" aria-hidden="true"></div>
-      <div class="panel companion"><div class="label">Browser Companion</div><img src="${assets.companion}"></div>
+      <div class="panel companion"><img src="${assets.companion}"></div>
     `
   },
   {
-    file: 'wren-companion-store-review-v12.png',
+    file: 'wren-companion-store-review-v13.png',
     title: 'A clearer view',
     lede: 'Wren lays out contracts, methods, and effects before you act.',
     body: `
       <div class="panel review"><img src="${assets.review}"></div>
       <div class="link link-review" aria-hidden="true"></div>
-      <div class="panel companion"><div class="label">Companion connected</div><img src="${assets.companion}"></div>
+      <div class="panel companion"><img src="${assets.companion}"></div>
     `
   }
 ]

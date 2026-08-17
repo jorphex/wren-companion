@@ -48,6 +48,7 @@ jobs:
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          test -f "release-notes/v${version}.md"
       - run: npm run setup:ci
       - run: npm run audit:release
       - name: Verify release package prerequisites
@@ -116,4 +117,4 @@ jobs:
             echo "Refusing to modify existing release $RELEASE_TAG; delete a failed draft or use a new version" >&2
             exit 1
           fi
-          gh release create "$RELEASE_TAG" artifacts/*.zip artifacts/*-compatibility.json artifacts/*.cdx.json artifacts/SHA256SUMS --target "$GITHUB_SHA" --draft --title "$RELEASE_VERSION" --notes "Automated Chrome and Firefox companion draft from $GITHUB_SHA. Install only with the desktop baseline named in the compatibility artifact."
+          gh release create "$RELEASE_TAG" artifacts/*.zip artifacts/*-compatibility.json artifacts/*.cdx.json artifacts/SHA256SUMS --target "$GITHUB_SHA" --draft --title "$RELEASE_VERSION" --notes-file "release-notes/v${RELEASE_VERSION}.md"

@@ -14,3 +14,8 @@ Run `npm run store:screenshots` to compose the reviewed source captures into the
 two versioned Chrome Web Store PNGs. `npm run brand:verify` checks their exact
 inventory and dimensions. Increment the filename version when changing a visual
 so reviewers and local previews cannot reuse a cached image.
+
+The manifest's 128px store icon is generated separately with `npm run
+store:icon`. It centers the canonical app artwork in Chrome's 96px square-icon
+safe area; this padding is specific to browser-store presentation and does not
+change Wren's desktop icon.

@@ -17,8 +17,8 @@ const iconDimensions = new Map([
 ])
 const storeImageDimensions = new Map([
   ['store-assets/promo-440x280.png', [440, 280]],
-  ['store-assets/screenshots/wren-companion-store-connected-v12.png', [1280, 800]],
-  ['store-assets/screenshots/wren-companion-store-review-v12.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-connected-v13.png', [1280, 800]],
+  ['store-assets/screenshots/wren-companion-store-review-v13.png', [1280, 800]],
   ['store-assets/source/companion-connected.png', [420, 418]],
   ['store-assets/source/wren-local-connections.png', [620, 900]],
   ['store-assets/source/wren-request-review.png', [930, 1350]]
@@ -45,7 +45,7 @@ for (const [file, expectedDimensions] of storeImageDimensions) {
 
 assert.deepEqual(
   (await readdir('store-assets/screenshots')).sort(),
-  ['wren-companion-store-connected-v12.png', 'wren-companion-store-review-v12.png'],
+  ['wren-companion-store-connected-v13.png', 'wren-companion-store-review-v13.png'],
   'Store screenshot inventory contains stale or missing assets'
 )
 
@@ -54,7 +54,14 @@ const canonicalHash = createHash('sha256').update(canonical).digest('hex')
 assert.equal(
   canonicalHash,
   '982b4f5c3c5767a4750dfc29cb4aedb81ff4761bf73b219ce943cbe139d93c2b',
-  'The companion store icon must match Wren desktop’s canonical app icon'
+  'The companion brand source must match Wren desktop’s canonical app icon'
+)
+
+const storeIcon = await readFile('src/icons/icon128.png')
+assert.equal(
+  createHash('sha256').update(storeIcon).digest('hex'),
+  '57d7559b1ffdf09b68ea548ab696725db9f735e251c10ba1cf0abdeb73f51c10',
+  'The browser-store icon must retain its reviewed 16px safe-area treatment'
 )
 
 const master = await readFile('src/brand/wren-mark.svg', 'utf8')

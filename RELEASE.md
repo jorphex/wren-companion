@@ -39,8 +39,8 @@ checksum.
 Push the exact `v<package version>` tag from the reviewed commit. The release
 workflow reruns the gate, verifies the minimum desktop commit is on the
 configured branch, emits provenance and SBOM attestations, and creates a draft
-release. It will not modify an existing release or reuse a tag bound to another
-commit.
+release using `release-notes/v<package version>.md`. It will not modify an
+existing release or reuse a tag bound to another commit.
 
 If a draft is unusable, delete the complete draft or bump the package version;
 never combine artifacts from separate runs. Publishing a GitHub draft does not

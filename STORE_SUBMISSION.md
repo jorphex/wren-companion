@@ -4,6 +4,23 @@ Submit Wren Companion 0.1.0 independently of Wren desktop releases. Keep this
 store version for later desktop releases while mutually authenticated protocol 3 remains
 compatible. Store credentials and publication are manual and external.
 
+## Maintainer prerequisites
+
+Before uploading anything:
+
+- Publish or stage the compatible Wren desktop 0.1.0 release so reviewers can
+  install the required local application.
+- Register the Chrome Web Store publisher account, pay Google's one-time fee,
+  enable two-step verification, choose the durable publisher name, and verify
+  the monitored contact email.
+- Sign in to Firefox Add-ons Developer Hub, accept its current agreements, and
+  confirm the account email.
+- Create the Companion `v0.1.0` draft from the exact candidate commit. Use its
+  checksums to identify the files below; do not rebuild during form entry.
+- Use the immutable tagged privacy-policy URL
+  `https://github.com/jorphex/wren-companion/blob/v0.1.0/PRIVACY.md` after the
+  tag exists.
+
 ## Qualified files
 
 From the exact clean release commit, run:
@@ -45,7 +62,7 @@ service.
 **Support:** https://github.com/jorphex/wren-companion/issues
 
 **Privacy policy:**
-https://github.com/jorphex/wren-companion/blob/main/PRIVACY.md
+https://github.com/jorphex/wren-companion/blob/v0.1.0/PRIVACY.md
 
 **License:** GNU General Public License v3.0 only
 
@@ -74,8 +91,10 @@ Privacy form answers:
   does not collect or receive them. Certify all applicable limited-use
   statements. The matching public Limited Use disclosure is in `PRIVACY.md`.
 
-Use `src/icons/icon128.png` as the approved Character-flat store icon. The matching
-`store-assets/promo-440x280.png` and both v12 PNGs in
+Use `src/icons/icon128.png` as the approved Character-flat store icon. It keeps
+the square artwork inside Chrome's 96-by-96 safe area on a transparent 128px
+canvas; regenerate it with `npm run store:icon`. The matching
+`store-assets/promo-440x280.png` and both v13 PNGs in
 `store-assets/screenshots/` are ready for submission. They are composed from
 isolated, deterministic captures of the actual Companion and Wren renderers;
 all displayed account, connection, origin, and transaction details are synthetic
@@ -99,7 +118,8 @@ Screenshot regeneration:
 
 Reviewer test steps:
 
-1. Install and start Wren desktop from its GitHub release.
+1. Install and start Wren desktop 0.1.0 from
+   `https://github.com/jorphex/wren/releases/tag/v0.1.0`.
 2. Open the Companion popup, compare its six-digit code with Wren, and approve
    pairing in Wren.
 3. Visit a dapp. Wren is announced through EIP-6963, and connection requests
@@ -107,7 +127,8 @@ Reviewer test steps:
 4. No account or paid service is required; disposable accounts are recommended.
 
 Choose deferred publishing so the approved listing can be checked before it is
-public.
+public. Chrome allows up to 30 days to publish an approved staged submission;
+do not submit until the desktop release and support contact are ready.
 
 ## Mozilla Add-ons
 
