@@ -151,8 +151,7 @@ do not submit until the desktop release and support contact are ready.
 
 In Add-ons Developer Hub, submit a new add-on **On this site** and upload the
 Firefox ZIP. The manifest UUID is unique to Wren Companion. Select desktop
-Firefox, mark the add-on experimental while the desktop wallet is a preview,
-and say that additional free software (Wren desktop) is required.
+Firefox and say that additional free software (Wren desktop) is required.
 
 When asked whether source is required, choose **Yes** and upload the matching
 reviewer-source ZIP. Put the reviewer test steps above in Notes for Reviewers,
