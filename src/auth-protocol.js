@@ -18,24 +18,6 @@ const errorCodes = new Set([
 ])
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
-function deriveExtensionIdentity(runtimeUrl) {
-  try {
-    const url = new URL(runtimeUrl)
-    const extensionId = url.hostname.toLowerCase()
-    if (url.protocol === 'chrome-extension:' && /^[a-p]{32}$/u.test(extensionId)) {
-      return Object.freeze({ browser: 'chrome', extensionId })
-    }
-    if (
-      url.protocol === 'moz-extension:' &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(extensionId)
-    ) {
-      return Object.freeze({ browser: 'firefox', extensionId })
-    }
-  } catch {
-    return
-  }
-}
-
 function exactKeys(value, keys) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const actual = Object.keys(value).sort()
@@ -237,7 +219,6 @@ module.exports = {
   AUTH_VERSION,
   MAX_AUTH_MESSAGE_BYTES,
   authPayload,
-  deriveExtensionIdentity,
   pairingCode,
   parseServerAuthMessage,
   sameExchange,

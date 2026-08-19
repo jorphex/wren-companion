@@ -75,7 +75,6 @@ async function setup({ credentialStore, role = 'control', now = () => 1000 } = {
   const socket = new AuthenticatedSocket({
     socket: raw,
     credentialStore: store,
-    identity: { browser: 'chrome', extensionId: 'a'.repeat(32) },
     channelRole: role,
     now,
     onStatus: (status) => statuses.push(status)
@@ -178,6 +177,8 @@ test('quarantines traffic until signed challenge and final ack verify, then pins
   assert.equal(session.socket.readyState, 0)
   assert.equal(session.hello.version, 3)
   assert.equal(session.hello.peerKind, 'companion')
+  assert.equal(Object.hasOwn(session.hello, 'browser'), false)
+  assert.equal(Object.hasOwn(session.hello, 'extensionId'), false)
   assert.equal(session.hello.client.fingerprint, session.bundle.fingerprint)
   assert.deepEqual(session.hello.client.publicKeys, {
     control: session.bundle.credentials.control.publicKey,
@@ -213,6 +214,8 @@ test('page reconnect is silent and uses only the page role key in the pinned bun
   await complete(control, desktop)
 
   const page = await setup({ credentialStore, role: 'page' })
+  assert.equal(Object.hasOwn(page.hello, 'browser'), false)
+  assert.equal(Object.hasOwn(page.hello, 'extensionId'), false)
   const { challenge, response } = await issueChallenge(page, desktop)
   assert.equal(await verifiesRoleSignature(response, challenge, page.hello, 'page'), true)
   assert.equal(await verifiesRoleSignature(response, challenge, page.hello, 'control'), false)
@@ -305,7 +308,6 @@ test('bounds a stalled desktop and cancels asynchronous authentication', async (
   const socket = new AuthenticatedSocket({
     socket: raw,
     credentialStore: new CredentialStore({ storage: new MemoryStorage() }),
-    identity: { browser: 'chrome', extensionId: 'a'.repeat(32) },
     channelRole: 'control',
     setTimer: (callback, delay) => {
       const id = nextTimer++

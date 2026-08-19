@@ -4,7 +4,6 @@ const {
   parseAuthenticationAction,
   shouldPauseAuthentication
 } = require('./authentication-actions')
-const { deriveExtensionIdentity } = require('./auth-protocol')
 const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
 const { PageSession, derivePageOwner } = require('./page-session')
@@ -28,8 +27,6 @@ let authenticationReady = false
 let authRecoveryPending = false
 let credentialRotation
 
-const extensionIdentity = deriveExtensionIdentity(chrome.runtime.getURL(''))
-if (!extensionIdentity) throw new Error('Unsupported Wren Companion extension identity')
 const credentialStore = new CredentialStore({ storage: new IndexedDbCredentialStorage() })
 
 const frameState = {
@@ -72,7 +69,6 @@ function createAuthenticatedSocket(role, onStatus = () => {}) {
   return new AuthenticatedSocket({
     socket: new WebSocket(frameUrl(role)),
     credentialStore,
-    identity: extensionIdentity,
     channelRole: role,
     onStatus
   })

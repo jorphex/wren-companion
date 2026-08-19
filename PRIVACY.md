@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective: August 15, 2026
+Effective: August 19, 2026
 
 Wren Companion connects browser dapps to a Wren desktop wallet on the same
 computer. It has no analytics, advertising, telemetry, remote code,
@@ -29,6 +29,13 @@ The companion stores a nonextractable P-256 control/page key bundle and the pinn
 Wren installation identity in browser IndexedDB. They mutually authenticate the
 local connection, are not wallet private keys, and cannot sign blockchain
 transactions. They remain until the user resets pairing or removes the extension.
+
+Companion does not intentionally send or store the browser name or the browser's
+runtime extension UUID. Firefox and Chromium attach an extension Origin header to
+the local WebSocket as part of the browser transport. Wren validates that header
+only to authenticate the live local transport, then discards the browser name and
+runtime UUID before constructing or storing pairing state. Companion collects no
+technical/interaction analytics or telemetry.
 
 An optional per-site setting that makes Wren appear as a legacy MetaMask
 provider is stored in that site's browser local storage. Request routing,

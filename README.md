@@ -11,7 +11,8 @@ for compatibility. Public discovery uses Wren and `io.github.jorphex.wren`.
 
 ## Compatibility
 
-Companion 0.1.0 uses mutually authenticated protocol 3. Pair it only with the minimum
+Companion 0.1.1 uses mutually authenticated protocol 3 and no longer sends its browser
+name or runtime extension UUID in the authentication hello. Pair it only with the minimum
 Wren desktop commit named in its `*-compatibility.json` artifact, or a later
 desktop release that retains protocol 3. Desktop releases that retain the
 protocol do not need a new Companion submission.

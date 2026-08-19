@@ -120,6 +120,17 @@ for (const file of ['index.js', 'inject.js']) {
   }
 }
 
+const backgroundBundle = await readFile(join(root, 'index.js'), 'utf8')
+for (const removedAuthMetadata of [
+  'deriveExtensionIdentity',
+  'browser:this.identity.browser',
+  'extensionId:this.identity.extensionId'
+]) {
+  if (backgroundBundle.includes(removedAuthMetadata)) {
+    throw new Error(`Authentication bundle transmits removed metadata: ${removedAuthMetadata}`)
+  }
+}
+
 const settingsBundle = await readFile(join(root, 'settings.js'), 'utf8')
 if (/\b(?:eval|Function)\s*\(/u.test(settingsBundle)) {
   throw new Error('Settings bundle contains dynamic code evaluation')

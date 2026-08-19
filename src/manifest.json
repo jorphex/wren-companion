@@ -1,6 +1,6 @@
 {
   "name": "Wren Companion",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "manifest_version": 3,
   "minimum_chrome_version": "116",
   "description": "Connects browser-based Ethereum and EVM dapps to the Wren desktop wallet.",

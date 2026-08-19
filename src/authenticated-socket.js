@@ -23,7 +23,6 @@ class AuthenticatedSocket {
   constructor({
     socket,
     credentialStore,
-    identity,
     channelRole,
     cryptoApi = crypto,
     now = Date.now,
@@ -36,7 +35,6 @@ class AuthenticatedSocket {
     }
     this.socket = socket
     this.credentialStore = credentialStore
-    this.identity = identity
     this.channelRole = channelRole
     this.cryptoApi = cryptoApi
     this.now = now
@@ -98,8 +96,6 @@ class AuthenticatedSocket {
           peerKind: 'companion',
           channelRole: this.channelRole,
           clientNonce: this.clientNonce,
-          browser: this.identity.browser,
-          extensionId: this.identity.extensionId,
           client: {
             installationId: this.bundle.installationId,
             fingerprint: this.bundle.fingerprint,

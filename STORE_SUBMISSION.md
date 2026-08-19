@@ -1,6 +1,6 @@
 # Browser Store Submission
 
-Submit Wren Companion 0.1.0 independently of Wren desktop releases. Keep this
+Submit Wren Companion 0.1.1 independently of Wren desktop releases. Keep this
 store version for later desktop releases while mutually authenticated protocol 3 remains
 compatible. Store credentials and publication are manual and external.
 
@@ -8,17 +8,17 @@ compatible. Store credentials and publication are manual and external.
 
 Before uploading anything:
 
-- Publish or stage the compatible Wren desktop 0.1.0 release so reviewers can
-  install the required local application.
+- Publish or stage a Wren desktop build at or after the exact minimum commit in
+  `compatibility.json` so reviewers can install the required local application.
 - Register the Chrome Web Store publisher account, pay Google's one-time fee,
   enable two-step verification, choose the durable publisher name, and verify
   the monitored contact email.
 - Sign in to Firefox Add-ons Developer Hub, accept its current agreements, and
   confirm the account email.
-- Create the Companion `v0.1.0` draft from the exact candidate commit. Use its
+- Create the Companion `v0.1.1` draft from the exact candidate commit. Use its
   checksums to identify the files below; do not rebuild during form entry.
 - Use the immutable tagged privacy-policy URL
-  `https://github.com/jorphex/wren-companion/blob/v0.1.0/PRIVACY.md` after the
+  `https://github.com/jorphex/wren-companion/blob/v0.1.1/PRIVACY.md` after the
   tag exists.
 
 ## Qualified files
@@ -30,9 +30,9 @@ npm run package:browsers
 npm run package:verify
 ```
 
-- Chrome: `artifacts/wren-companion-0.1.0-chrome.zip`
-- Firefox: `artifacts/wren-companion-0.1.0-firefox.zip`
-- Firefox reviewer source: `artifacts/wren-companion-0.1.0-source.zip`
+- Chrome: `artifacts/wren-companion-0.1.1-chrome.zip`
+- Firefox: `artifacts/wren-companion-0.1.1-firefox.zip`
+- Firefox reviewer source: `artifacts/wren-companion-0.1.1-source.zip`
 - Checksums: `artifacts/SHA256SUMS`
 
 Do not interchange browser ZIPs or upload the reviewer-source ZIP as an
@@ -62,7 +62,7 @@ service.
 **Support:** https://github.com/jorphex/wren-companion/issues
 
 **Privacy policy:**
-https://github.com/jorphex/wren-companion/blob/v0.1.0/PRIVACY.md
+https://github.com/jorphex/wren-companion/blob/v0.1.1/PRIVACY.md
 
 **License:** GNU General Public License v3.0 only
 
@@ -135,8 +135,8 @@ Screenshot regeneration:
 
 Reviewer test steps:
 
-1. Install and start Wren desktop 0.1.0 from
-   `https://github.com/jorphex/wren/releases/tag/v0.1.0`.
+1. Install and start the staged Wren desktop build whose commit is at or after
+   the minimum commit in the submitted compatibility artifact.
 2. Open the Companion popup, compare its six-digit code with Wren, and approve
    pairing in Wren.
 3. Visit a dapp. Wren is announced through EIP-6963, and connection requests
@@ -161,6 +161,12 @@ from `MOZILLA_REVIEW.md`. The manifest's required data-transmission categories
 are financial and payment information, authentication information, browsing
 activity, and website content; all transmission is only to local Wren and is
 necessary for the primary function. Then submit for signing and review.
+
+In Notes for Reviewers, explicitly state that 0.1.1 removes the browser name and
+runtime extension UUID previously sent by 0.1.0. Do not select
+`technicalAndInteraction`: 0.1.1 has no technical/interaction analytics,
+telemetry, or feature. Firefox's browser-supplied WebSocket Origin is validated
+transiently by Wren and is neither emitted by Companion code nor persisted.
 
 After Mozilla signs the version, install the signed file in regular Firefox and
 repeat pairing, connection, account/chain event, reset, and revocation checks

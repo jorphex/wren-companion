@@ -29,6 +29,20 @@ advertising, cloud account, or developer-operated service. The declaration is
 required because Wren is a separate local application, not because data leaves
 the user's computer.
 
+### Version 0.1.1 policy remediation
+
+Version 0.1.0 explicitly included the browser name and runtime extension UUID in
+its local authentication hello. Version 0.1.1 removes those fields from every
+browser build. The signed installation ID and control/page public-key bundle are
+the only Companion identity sent by the add-on and retained by Wren.
+
+Firefox itself supplies a `moz-extension://...` Origin header when opening the
+loopback WebSocket. Wren validates this browser-supplied header as live transport
+security evidence and immediately discards the browser name/runtime UUID; neither
+application persists it. There is no technical/interaction analytics, telemetry,
+feature, or optional collection to declare. Automated protocol and packaged-
+artifact checks reject reintroduction of the removed hello fields.
+
 ## Build environment
 
 - Release build: Ubuntu/Pop!_OS 22.04 x64
@@ -54,7 +68,7 @@ the source archive:
 
 ```bash
 mkdir submitted
-unzip wren-companion-0.1.0-firefox.zip -d submitted
+unzip wren-companion-0.1.1-firefox.zip -d submitted
 diff -qr dist-firefox submitted
 ```
 

@@ -6,7 +6,6 @@ const test = require('node:test')
 
 const {
   authPayload,
-  deriveExtensionIdentity,
   pairingCode,
   parseServerAuthMessage,
   sameExchange,
@@ -124,11 +123,6 @@ test('verifies desktop proof and detects expiry, tampering, replay, and ack subs
   assert.equal(sameExchange({ ...ack, challengeId: uuid('6') }, challenge), false)
 })
 
-test('derives extension identity and challenge-bound pairing code', async () => {
-  assert.deepEqual(deriveExtensionIdentity(`chrome-extension://${'a'.repeat(32)}/index.js`), {
-    browser: 'chrome',
-    extensionId: 'a'.repeat(32)
-  })
-  assert.equal(deriveExtensionIdentity('https://example.test'), undefined)
+test('derives a challenge-bound pairing code', async () => {
   assert.match(await pairingCode(await signedChallenge()), /^\d{6}$/u)
 })

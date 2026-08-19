@@ -313,8 +313,6 @@ export class MockDesktop {
         'peerKind',
         'channelRole',
         'clientNonce',
-        'browser',
-        'extensionId',
         'client'
       ]) ||
       message.type !== 'frame-auth' ||
@@ -323,8 +321,6 @@ export class MockDesktop {
       message.peerKind !== 'companion' ||
       !CHANNEL_ROLES.has(message.channelRole) ||
       message.channelRole !== connection.role ||
-      message.browser !== connection.identity.browser ||
-      message.extensionId !== connection.identity.extensionId ||
       !isBase64Url(message.clientNonce, 32) ||
       !exactKeys(message.client, [
         'installationId',
