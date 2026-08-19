@@ -1,7 +1,22 @@
 const assert = require('node:assert/strict')
+const { createHash } = require('node:crypto')
 const test = require('node:test')
 
 const { createProviderInfo, randomUuid } = require('../src/provider-info')
+
+const assertCanonicalWrenIcon = (icon) => {
+  const match = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/u.exec(icon)
+  assert.ok(match)
+  const png = Buffer.from(match[1], 'base64')
+  assert.equal(png.toString('base64'), match[1])
+  assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10])
+  assert.equal(png.readUInt32BE(16), 128)
+  assert.equal(png.readUInt32BE(20), 128)
+  assert.equal(
+    createHash('sha256').update(png).digest('hex'),
+    'bc8ba0f545d9a8b005cbf704a147b94f6e77a20afa54bd01b1c74983decc9676'
+  )
+}
 
 test('creates immutable EIP-6963 metadata with a UUIDv4', () => {
   const info = createProviderInfo(() => '12345678-1234-4234-9234-123456789abc')
@@ -13,7 +28,7 @@ test('creates immutable EIP-6963 metadata with a UUIDv4', () => {
     rdns: 'io.github.jorphex.wren'
   })
   assert.equal(Object.isFrozen(info), true)
-  assert.match(info.icon, /^data:image\/svg\+xml;base64,/u)
+  assertCanonicalWrenIcon(info.icon)
 })
 
 test('rejects non-v4 identifiers', () => {
