@@ -43,6 +43,14 @@ application persists it. There is no technical/interaction analytics, telemetry,
 feature, or optional collection to declare. Automated protocol and packaged-
 artifact checks reject reintroduction of the removed hello fields.
 
+### Version 0.1.2 compatibility update
+
+Version 0.1.2 retains the same protocol and data boundary. It adds compatibility
+for dapps that use MetaMask's legacy provider marker as a generic EIP-1193 gate,
+while Wren remains separately identified through EIP-6963. It also prevents
+same-origin contract iframes and transient localhost reconnects from replacing a
+usable popup state with misleading disconnected or unavailable messages.
+
 ## Build environment
 
 - Release build: Ubuntu/Pop!_OS 22.04 x64
@@ -68,7 +76,7 @@ the source archive:
 
 ```bash
 mkdir submitted
-unzip wren-companion-0.1.1-firefox.zip -d submitted
+unzip wren-companion-0.1.2-firefox.zip -d submitted
 diff -qr dist-firefox submitted
 ```
 

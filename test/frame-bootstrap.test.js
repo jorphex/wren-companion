@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-test('installs the legacy provider before the first EIP-6963 announcement', () => {
+test('installs the legacy provider before the first EIP-6963 announcement', async () => {
   const originalWindow = global.window
   const originalDocument = global.document
   const originalCustomEvent = global.CustomEvent
@@ -38,6 +38,10 @@ test('installs the legacy provider before the first EIP-6963 announcement', () =
 
     assert.ok(announcedProvider)
     assert.equal(legacyProviderAtAnnouncement, announcedProvider)
+    assert.equal(announcedProvider.isMetaMask, true)
+    assert.equal(announcedProvider.isWren, true)
+    assert.equal(announcedProvider.isFrame, true)
+    assert.equal(await announcedProvider._metamask.isUnlocked(), true)
   } finally {
     delete require.cache[require.resolve('../src/frame')]
     global.window = originalWindow

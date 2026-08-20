@@ -1,6 +1,6 @@
 # Browser Store Submission
 
-Submit Wren Companion 0.1.1 independently of Wren desktop releases. Keep this
+Submit Wren Companion 0.1.2 independently of Wren desktop releases. Keep this
 store version for later desktop releases while mutually authenticated protocol 3 remains
 compatible. Store credentials and publication are manual and external.
 
@@ -15,10 +15,10 @@ Before uploading anything:
   the monitored contact email.
 - Sign in to Firefox Add-ons Developer Hub, accept its current agreements, and
   confirm the account email.
-- Create the Companion `v0.1.1` draft from the exact candidate commit. Use its
+- Create the Companion `v0.1.2` draft from the exact candidate commit. Use its
   checksums to identify the files below; do not rebuild during form entry.
 - Use the immutable tagged privacy-policy URL
-  `https://github.com/jorphex/wren-companion/blob/v0.1.1/PRIVACY.md` after the
+  `https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md` after the
   tag exists.
 
 ## Qualified files
@@ -30,9 +30,9 @@ npm run package:browsers
 npm run package:verify
 ```
 
-- Chrome: `artifacts/wren-companion-0.1.1-chrome.zip`
-- Firefox: `artifacts/wren-companion-0.1.1-firefox.zip`
-- Firefox reviewer source: `artifacts/wren-companion-0.1.1-source.zip`
+- Chrome: `artifacts/wren-companion-0.1.2-chrome.zip`
+- Firefox: `artifacts/wren-companion-0.1.2-firefox.zip`
+- Firefox reviewer source: `artifacts/wren-companion-0.1.2-source.zip`
 - Checksums: `artifacts/SHA256SUMS`
 
 Do not interchange browser ZIPs or upload the reviewer-source ZIP as an
@@ -62,7 +62,7 @@ service.
 **Support:** https://github.com/jorphex/wren-companion/issues
 
 **Privacy policy:**
-https://github.com/jorphex/wren-companion/blob/v0.1.1/PRIVACY.md
+https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md
 
 **License:** GNU General Public License v3.0 only
 
@@ -162,9 +162,9 @@ are financial and payment information, authentication information, browsing
 activity, and website content; all transmission is only to local Wren and is
 necessary for the primary function. Then submit for signing and review.
 
-In Notes for Reviewers, explicitly state that 0.1.1 removes the browser name and
+In Notes for Reviewers, explicitly state that 0.1.1 removed the browser name and
 runtime extension UUID previously sent by 0.1.0. Do not select
-`technicalAndInteraction`: 0.1.1 has no technical/interaction analytics,
+`technicalAndInteraction`: 0.1.2 has no technical/interaction analytics,
 telemetry, or feature. Firefox's browser-supplied WebSocket Origin is validated
 transiently by Wren and is neither emitted by Companion code nor persisted.
 

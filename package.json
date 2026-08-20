@@ -1,6 +1,6 @@
 {
   "name": "wren-companion",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "packageManager": "npm@11.12.0",
   "repository": {
     "type": "git",

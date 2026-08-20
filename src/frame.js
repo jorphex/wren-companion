@@ -46,10 +46,13 @@ function bootstrap(event) {
 window.addEventListener('message', bootstrap)
 
 const provider = new FrameProvider(connection)
-if (appearAsMetaMask) {
-  provider.isMetaMask = true
-  provider._metamask = Object.freeze({ isUnlocked: async () => true })
-} else {
+// Some legacy wallet pickers use `isMetaMask` as a generic EIP-1193
+// compatibility gate even after the user explicitly selects another EIP-6963
+// wallet. Keep the Wren identity below, but satisfy that probe so the picker
+// proceeds to the account request.
+provider.isMetaMask = true
+provider._metamask = Object.freeze({ isUnlocked: async () => true })
+if (!appearAsMetaMask) {
   provider.isFrame = true
   provider.isWren = true
 }

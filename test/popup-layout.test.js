@@ -155,7 +155,10 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
   assert.match(networkRefreshSource, /chainsStatus: 'ready'/u)
   assert.match(networkRefreshSource, /chainsStatus: 'error'/u)
   assert.match(backgroundSource, /chainsError: null/u)
-  assert.match(backgroundSource, /session\.pageConnectionConfirmed \? 'connected' : 'ready'/u)
+  assert.match(backgroundSource, /tabSessionState\(pageSessions/u)
+  const controlClose = backgroundSource.match(/onClose: \(\) => \{([\s\S]*?)\n {2}\}\n\}\)/u)?.[1]
+  assert.ok(controlClose)
+  assert.doesNotMatch(controlClose, /availableChains/u)
   assert.match(settingsSource, /this\.store\('tabStatus'\) === 'checking'/u)
   assert.match(settingsSource, /\['ready', 'connected'\]\.includes\(this\.store\('tabStatus'\)\)/u)
   assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'loading'/u)

@@ -8,6 +8,7 @@ const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
 const { networkRefreshFailure, networkRefreshSuccess } = require('./network-refresh')
 const { PageSession, derivePageOwner } = require('./page-session')
+const { tabSessionState } = require('./tab-session-state')
 
 const frameUrl = (role) =>
   `ws://127.0.0.1:${globalThis.__WREN_DESKTOP_PORT__}?identity=frame-extension&role=${encodeURIComponent(role)}`
@@ -128,7 +129,6 @@ function handlePageAuthenticationStatus(authentication) {
   setAuthenticationReady(false)
   setFrameState({
     connected: false,
-    availableChains: [],
     chainsStatus: 'idle',
     chainsError: null,
     authentication
@@ -204,15 +204,8 @@ function publishSessionState(session) {
   for (const port of settingsPorts) {
     if (port.frameTabId !== session.owner.tabId || port.frameOrigin !== session.owner.origin)
       continue
-    setPortChain(
-      port,
-      session.currentChain || port.frameChainId || '',
-      session.pageConnectionConfirmed
-        ? 'connected'
-        : session.connected && (session.currentChain || port.frameChainId)
-          ? 'ready'
-          : 'checking'
-    )
+    const state = tabSessionState(pageSessions, port.frameTabId, port.frameOrigin)
+    if (state) setPortChain(port, state.chain || port.frameChainId || '', state.status)
   }
 }
 
@@ -232,7 +225,6 @@ const control = new ControlClient({
     }
     setFrameState({
       connected: false,
-      availableChains: [],
       chainsStatus: 'idle',
       chainsError: null
     })
