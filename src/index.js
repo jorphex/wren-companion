@@ -7,8 +7,13 @@ const {
 const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
 const { networkRefreshFailure, networkRefreshSuccess } = require('./network-refresh')
+const {
+  clearNetworkCatalogCache,
+  loadNetworkCatalogCache,
+  saveNetworkCatalogCache
+} = require('./network-catalog-cache')
 const { PageSession, derivePageOwner } = require('./page-session')
-const { tabSessionState } = require('./tab-session-state')
+const { preferredTabSession, tabSessionState } = require('./tab-session-state')
 
 const frameUrl = (role) =>
   `ws://127.0.0.1:${globalThis.__WREN_DESKTOP_PORT__}?identity=frame-extension&role=${encodeURIComponent(role)}`
@@ -178,13 +183,7 @@ function rejectPagePort(port) {
   setTimeout(() => port.disconnect(), 100)
 }
 
-function topSessionForTab(tabId) {
-  return [...pageSessions].find(
-    (session) => !session.closed && session.owner.tabId === tabId && session.owner.frameId === 0
-  )
-}
-
-async function activeTopSession(port) {
+async function activeTabSession(port) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!Number.isInteger(tab?.id) || typeof tab.url !== 'string') return
   let origin
@@ -193,11 +192,9 @@ async function activeTopSession(port) {
   } catch {
     return
   }
-  const session = topSessionForTab(tab.id)
-  if (!session || session.owner.origin !== origin) return
   port.frameTabId = tab.id
   port.frameOrigin = origin
-  return session
+  return preferredTabSession(pageSessions, tab.id, origin)
 }
 
 function publishSessionState(session) {
@@ -230,7 +227,12 @@ const control = new ControlClient({
     })
   }
 })
-control.connect()
+loadNetworkCatalogCache(chrome.storage.local)
+  .then((chains) => {
+    if (chains) setFrameState(networkRefreshSuccess(chains))
+  })
+  .catch(() => {})
+  .finally(() => control.connect())
 
 function refreshAvailableChains(client = control) {
   if (chainsRefreshPromise) return chainsRefreshPromise
@@ -240,6 +242,7 @@ function refreshAvailableChains(client = control) {
     .then((chains) => {
       lastChainsErrorDiagnostic = ''
       setFrameState(networkRefreshSuccess(chains))
+      saveNetworkCatalogCache(chrome.storage.local, chains).catch(() => {})
     })
     .catch((error) => {
       if (!frameState.connected) return
@@ -263,7 +266,7 @@ async function initializeSettingsPort(port) {
   publishState()
   try {
     const chains = refreshAvailableChains()
-    const session = await activeTopSession(port)
+    const session = await activeTabSession(port)
     if (!session) return setPortChain(port, '', 'disconnected')
     const chainId = await session.requestControl('eth_chainId', [], true)
     setPortChain(
@@ -299,7 +302,7 @@ async function handleSettingsMessage(port, message) {
     if (port.frameRefreshPromise) return port.frameRefreshPromise
     port.frameRefreshPromise = (async () => {
       const chains = refreshAvailableChains()
-      const session = await activeTopSession(port)
+      const session = await activeTabSession(port)
       if (!session) {
         await chains
         return setPortChain(port, '', 'disconnected')
@@ -333,6 +336,7 @@ async function handleSettingsMessage(port, message) {
         chainsError: null,
         authentication: { status: 'rotating' }
       })
+      await clearNetworkCatalogCache(chrome.storage.local).catch(() => {})
       try {
         await credentialStore.rotate()
         control.restart()
@@ -358,7 +362,7 @@ async function handleSettingsMessage(port, message) {
     typeof message.requestId === 'string' &&
     /^0x(?:0|[1-9a-f][0-9a-f]*)$/u.test(message.chainId)
   ) {
-    const session = await activeTopSession(port)
+    const session = await activeTabSession(port)
     if (!session) {
       try {
         port.postMessage({

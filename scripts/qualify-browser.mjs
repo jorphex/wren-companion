@@ -116,7 +116,7 @@ class QualificationSite {
     this.origin = `http://${hostname}:${this.port}`
   }
 
-  html(frameOrigin) {
+  html(frameOrigin, activateProvider = true) {
     const isTop = this.kind === 'top'
     return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${this.kind}</title>
@@ -131,6 +131,10 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
   const info = event.detail.info;
   globalThis.__wren.announcements.push({ name: info.name, rdns: info.rdns, uuid: info.uuid });
   globalThis.__wren.provider = event.detail.provider;
+  if (!${JSON.stringify(activateProvider)}) {
+    report({ kind: '${this.kind}', type: 'announced', info: { name: info.name, rdns: info.rdns } });
+    return;
+  }
   try {
     const chainId = await event.detail.provider.request({ method: 'eth_chainId' });
     report({ kind: '${this.kind}', type: 'ready', chainId, info: { name: info.name, rdns: info.rdns } });
@@ -163,7 +167,8 @@ window.dispatchEvent(new Event('eip6963:requestProvider'));
       response.writeHead(404).end()
       return
     }
-    const html = this.html(this.frameOrigin)
+    const url = new URL(request.url, this.origin)
+    const html = this.html(this.frameOrigin, url.searchParams.get('idle') !== '1')
     response.writeHead(200, {
       'Cache-Control': 'no-store',
       'Content-Type': 'text/html; charset=utf-8',
@@ -525,7 +530,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     const page = await cdp.page(`${top.origin}/`)
     const worker = await chromeExtensionWorker(cdp, desktop)
     const extensionId = new URL(worker.url).hostname
-    const workerTarget = await cdp.send('Target.attachToTarget', {
+    let workerTarget = await cdp.send('Target.attachToTarget', {
       targetId: worker.targetId,
       flatten: true
     })
@@ -602,10 +607,45 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       `document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' })`
     )
     await qualifyChromePopupLayout(settings, 'long-chain-list')
+    await settings.close()
+    await cdp.send('Page.navigate', { url: `${top.origin}/?idle=1` }, page.sessionId)
+    await page.waitFor(
+      `location.search === '?idle=1' && globalThis.__wren?.announcements.length > 0`
+    )
+    settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'idle connected tab')
+    await settings.waitFor(
+      `document.querySelectorAll('[data-chain-id]').length === 18 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`
+    )
+    assert.equal(
+      await settings.evaluate(`document.body.textContent.includes('Refresh this tab')`),
+      false
+    )
+    const controlAuthenticationsBeforeRestart = desktop.authentications.filter(
+      ({ role, browser }) => role === 'control' && browser === 'chrome'
+    ).length
     desktop.availableChains = {}
+    await settings.close()
+    await cdp.send('ServiceWorker.enable', {}, page.sessionId)
+    await cdp.send('ServiceWorker.stopAllWorkers', {}, page.sessionId)
+    await waitFor(
+      () =>
+        desktop.authentications.filter(
+          ({ role, browser }) => role === 'control' && browser === 'chrome'
+        ).length > controlAuthenticationsBeforeRestart,
+      'Companion service-worker restart'
+    )
+    await cdp.send('Page.reload', {}, page.sessionId)
+    await page.waitFor(`document.readyState === 'complete'`)
+    const restartedWorker = await chromeExtensionWorker(cdp, desktop)
+    workerTarget = await cdp.send('Target.attachToTarget', {
+      targetId: restartedWorker.targetId,
+      flatten: true
+    })
+    await cdp.send('Target.activateTarget', { targetId: page.targetId })
+    settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'cached networks')
     await settings.waitFor(
       `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
-      10_000
+      15_000
     )
     await qualifyChromePopupLayout(settings, 'network-refresh-error')
     desktop.availableChains = availableChains
@@ -621,7 +661,16 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await settings.waitFor(`document.querySelector('[role="alertdialog"]')`)
     await qualifyChromePopupLayout(settings, 'identity-confirmation')
     await settings.evaluate(
-      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Keep current identity').click()`
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click()`
+    )
+    await page.waitFor(
+      `document.readyState === 'complete' && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      30_000
+    )
+    await cdp.send('Target.activateTarget', { targetId: page.targetId })
+    settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'switched identity')
+    await settings.waitFor(
+      `document.body.textContent.includes('Injecting as MetaMask') && !document.body.textContent.includes('Refresh this tab')`
     )
     if (qualificationExportDirectory) {
       await settings.close()
@@ -899,6 +948,25 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       `(() => { document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' }); return true })()`
     )
     await qualifyFirefoxPopupLayout(marionette, 'long-chain-list')
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await marionette.request('WebDriver:Navigate', { url: `${top.origin}/?idle=1` })
+    await firefoxWaitFor(
+      marionette,
+      `location.search === '?idle=1' && document.readyState === 'complete'`,
+      'Firefox idle provider page'
+    )
+    await delay(800)
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.querySelectorAll('[data-chain-id]').length === 18 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask') && !document.body.textContent.includes('Refresh this tab')`,
+      'Firefox idle connected popup'
+    )
     desktop.availableChains = {}
     await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
     await firefoxReloadExtensionInBackground(
@@ -936,7 +1004,63 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       'Firefox identity confirmation'
     )
     await qualifyFirefoxPopupLayout(marionette, 'identity-confirmation')
-    await firefoxEvaluate(marionette, `(() => { location.reload(); return true })()`)
+    const selectedDappBehindPopup = await firefoxChromeEvaluate(
+      marionette,
+      `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        const browser = [...window.gBrowser.browsers].find(
+          (candidate) => candidate.currentURI.spec.startsWith(arguments[0])
+        );
+        if (!browser) return false;
+        window.gBrowser.selectedTab = window.gBrowser.getTabForBrowser(browser);
+        return true;
+      `,
+      [top.origin]
+    )
+    assert.equal(selectedDappBehindPopup, true, 'Firefox dapp tab remains active behind popup')
+    await firefoxEvaluate(
+      marionette,
+      `(() => {
+        [...document.querySelectorAll('button')]
+          .find((button) => button.textContent.trim() === 'Switch to MetaMask')
+          .click();
+        return true;
+      })()`
+    )
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.readyState === 'complete' && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      'Firefox identity switch reload'
+    )
+
+    const recoveryPopupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
+    const recoveryPopupHandle = recoveryPopupWindow.value?.handle || recoveryPopupWindow.handle
+    await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
+    await firefoxNavigateExtension(marionette, `moz-extension://${extensionId}/settings.html`)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.body.textContent.includes('Injecting as MetaMask') && !document.body.textContent.includes('Refresh this tab')`,
+      'Firefox switched identity popup'
+    )
+
+    const unsupportedWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
+    const unsupportedHandle = unsupportedWindow.value?.handle || unsupportedWindow.handle
+    await marionette.request('WebDriver:SwitchToWindow', { handle: unsupportedHandle })
+    await marionette.request('WebDriver:Navigate', { url: 'about:blank' })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
     await firefoxWaitFor(
       marionette,
       `document.body.textContent.includes('This browser tab is not available to Wren.')`,

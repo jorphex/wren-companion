@@ -8,6 +8,7 @@ let popupLayout
 const root = path.join(__dirname, '..')
 const globalStyle = fs.readFileSync(path.join(root, 'src', 'style', 'index.css'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'utf8')
+const injectionSource = fs.readFileSync(path.join(root, 'src', 'inject.js'), 'utf8')
 const networkRefreshSource = fs.readFileSync(path.join(root, 'src', 'network-refresh.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
 const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
@@ -156,6 +157,10 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
   assert.match(networkRefreshSource, /chainsStatus: 'error'/u)
   assert.match(backgroundSource, /chainsError: null/u)
   assert.match(backgroundSource, /tabSessionState\(pageSessions/u)
+  assert.match(backgroundSource, /preferredTabSession\(pageSessions/u)
+  assert.match(backgroundSource, /port\.frameTabId = tab\.id/u)
+  assert.match(backgroundSource, /port\.frameOrigin = origin/u)
+  assert.match(injectionSource, /if \(window\.top === window\) connect\(\)/u)
   const controlClose = backgroundSource.match(/onClose: \(\) => \{([\s\S]*?)\n {2}\}\n\}\)/u)?.[1]
   assert.ok(controlClose)
   assert.doesNotMatch(controlClose, /availableChains/u)
@@ -164,6 +169,9 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
   assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'loading'/u)
   assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'error'/u)
   assert.match(settingsSource, /this\.networkRefreshWarning\(interactionLocked\)/u)
+  assert.match(settingsSource, /identityStatusPanel/u)
+  assert.match(settingsSource, /this\.tabNotConnected\(interactionLocked\)/u)
+  assert.match(settingsSource, /this\.appearAsMMToggle\(interactionLocked\)/u)
 })
 
 test('identity reload writes the confirmed value only to the captured active document', () => {

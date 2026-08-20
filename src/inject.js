@@ -178,3 +178,8 @@ script.onload = () => {
 }
 script.onerror = stop
 ;(document.head || document.documentElement).appendChild(script)
+
+// Prime one lightweight runtime port per supported top-level tab. The desktop
+// socket remains lazy, but the popup can now find and activate the tab even
+// before the page makes its first provider request.
+if (window.top === window) connect()

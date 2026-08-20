@@ -86,7 +86,7 @@ if (
   throw new Error('Extension must not request unrestricted host access')
 }
 if (
-  JSON.stringify(manifest.permissions) !== JSON.stringify(['alarms', 'scripting']) ||
+  JSON.stringify(manifest.permissions) !== JSON.stringify(['alarms', 'scripting', 'storage']) ||
   JSON.stringify(manifest.host_permissions) !== JSON.stringify(['https://*/*', 'http://*/*'])
 ) {
   throw new Error('Extension permissions differ from the reviewed store policy')

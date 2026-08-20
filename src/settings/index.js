@@ -816,6 +816,15 @@ class _Settings extends React.Component {
     )
   }
 
+  identityStatusPanel(notice, interactionLocked) {
+    return (
+      <MainPanel $chainCount={0}>
+        {notice}
+        <ChainCluster>{this.appearAsMMToggle(interactionLocked)}</ChainCluster>
+      </MainPanel>
+    )
+  }
+
   authenticationPanel(interactionLocked = false) {
     const authentication = this.store('authentication') || { status: 'disconnected' }
 
@@ -1362,30 +1371,32 @@ class _Settings extends React.Component {
     }
 
     if (this.store('tabStatus') === 'checking') {
-      return (
-        <MainPanel>
-          {this.statusNotice(
-            'Checking this tab',
-            'Confirming this tab’s Wren connection.',
-            undefined,
-            'Checking'
-          )}
-        </MainPanel>
+      return this.identityStatusPanel(
+        this.statusNotice(
+          'Checking this tab',
+          'Confirming this tab’s Wren connection.',
+          undefined,
+          'Checking'
+        ),
+        interactionLocked
       )
     }
 
     if (!['ready', 'connected'].includes(this.store('tabStatus'))) {
-      return <MainPanel>{this.tabNotConnected(interactionLocked)}</MainPanel>
+      return this.identityStatusPanel(this.tabNotConnected(interactionLocked), interactionLocked)
     }
 
     if (!availableChains.length) {
       if (this.store('chainsStatus') === 'loading') {
-        return <MainPanel>{this.networksLoading()}</MainPanel>
+        return this.identityStatusPanel(this.networksLoading(), interactionLocked)
       }
       if (this.store('chainsStatus') === 'error') {
-        return <MainPanel>{this.networksUnavailable(interactionLocked)}</MainPanel>
+        return this.identityStatusPanel(
+          this.networksUnavailable(interactionLocked),
+          interactionLocked
+        )
       }
-      return <MainPanel>{this.noNetworks(interactionLocked)}</MainPanel>
+      return this.identityStatusPanel(this.noNetworks(interactionLocked), interactionLocked)
     }
 
     const currentChainDetails = availableChains.find(

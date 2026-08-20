@@ -74,6 +74,7 @@ export default [
       'src/index.js',
       'src/inject.js',
       'src/legacy-provider.js',
+      'src/network-catalog-cache.js',
       'src/network-refresh.js',
       'src/page-connection.js',
       'src/timers.js'

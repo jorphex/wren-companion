@@ -80,6 +80,10 @@ Privacy form answers:
   Manifest V3 service worker is suspended and resumed.
 - **scripting:** Reads or changes the per-site legacy-provider preference only
   when the user explicitly toggles it in the extension popup.
+- **storage:** Retains the last network catalog successfully read from local Wren
+  so a background-worker restart or transient localhost refresh does not erase
+  known networks. The cache contains no accounts, requests, transactions, page
+  content, or private keys and is cleared when pairing is reset.
 - **Host access:** Injects the EIP-1193 provider at document start on HTTP and
   HTTPS dapp pages. Sites cannot be predicted in advance; requests remain
   isolated by browser-provided tab, frame, document, and origin identity.

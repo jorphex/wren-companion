@@ -45,11 +45,19 @@ artifact checks reject reintroduction of the removed hello fields.
 
 ### Version 0.1.2 compatibility update
 
-Version 0.1.2 retains the same protocol and data boundary. It adds compatibility
-for dapps that use MetaMask's legacy provider marker as a generic EIP-1193 gate,
-while Wren remains separately identified through EIP-6963. It also prevents
-same-origin contract iframes and transient localhost reconnects from replacing a
-usable popup state with misleading disconnected or unavailable messages.
+Version 0.1.2 retains the same protocol and data-transmission boundary. It adds
+compatibility for dapps that use MetaMask's legacy provider marker as a generic
+EIP-1193 gate, while Wren remains separately identified through EIP-6963. A
+top-level content script now opens a lightweight browser-runtime port before the
+first dapp RPC, allowing the popup to establish the active tab without opening a
+desktop socket eagerly. Same-origin contract frames are aggregated without
+downgrading a usable tab.
+
+The new `storage` permission retains only the last network catalog successfully
+read from local Wren. This prevents a Manifest V3 background restart or transient
+localhost refresh failure from replacing known networks with an unavailable
+screen. The cache contains no accounts, requests, transactions, page content, or
+private keys and is cleared when pairing is reset.
 
 ## Build environment
 

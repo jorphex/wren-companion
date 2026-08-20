@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const test = require('node:test')
 
-const { tabSessionState } = require('../src/tab-session-state')
+const { preferredTabSession, tabSessionState } = require('../src/tab-session-state')
 
 const session = (frameId, update = {}) => ({
   owner: { tabId: 7, frameId, origin: 'https://basescan.org' },
@@ -49,4 +49,24 @@ test('ignores sessions from other tabs and origins', () => {
     ),
     undefined
   )
+})
+
+test('prefers a confirmed same-origin iframe over an idle top frame', () => {
+  const top = session(0)
+  const contractFrame = session(3, {
+    connected: true,
+    pageConnectionConfirmed: true,
+    currentChain: '0x2105'
+  })
+
+  assert.equal(
+    preferredTabSession(new Set([top, contractFrame]), 7, 'https://basescan.org'),
+    contractFrame
+  )
+})
+
+test('falls back to the top frame when no frame has a usable connection', () => {
+  const top = session(0)
+
+  assert.equal(preferredTabSession(new Set([session(2), top]), 7, 'https://basescan.org'), top)
 })
