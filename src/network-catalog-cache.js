@@ -1,5 +1,6 @@
 const CACHE_KEY = 'wrenNetworkCatalogV1'
 const CACHE_VERSION = 1
+const { validateNetworkCatalog } = require('./network-refresh')
 
 function parseNetworkCatalogCache(value) {
   if (
@@ -11,7 +12,7 @@ function parseNetworkCatalogCache(value) {
   ) {
     return undefined
   }
-  return value.chains
+  return validateNetworkCatalog(value.chains)
 }
 
 async function loadNetworkCatalogCache(storage) {
@@ -20,8 +21,9 @@ async function loadNetworkCatalogCache(storage) {
 }
 
 function saveNetworkCatalogCache(storage, chains) {
-  if (!Array.isArray(chains)) return Promise.reject(new Error('Invalid network catalog'))
-  return storage.set({ [CACHE_KEY]: { version: CACHE_VERSION, chains } })
+  const catalog = validateNetworkCatalog(chains)
+  if (!catalog) return Promise.reject(new Error('Invalid network catalog'))
+  return storage.set({ [CACHE_KEY]: { version: CACHE_VERSION, chains: catalog } })
 }
 
 function clearNetworkCatalogCache(storage) {

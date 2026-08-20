@@ -52,3 +52,20 @@ test('rejects invalid writes and clears pairing-bound cache state', async () => 
 
   assert.equal(await loadNetworkCatalogCache(storage), undefined)
 })
+
+test('does not replace a valid cached catalog with malformed refresh data', async () => {
+  const chains = [{ chainId: 1, name: 'Ethereum', connected: true }]
+  const storage = new MemoryStorage()
+  await saveNetworkCatalogCache(storage, chains)
+
+  await assert.rejects(
+    saveNetworkCatalogCache(storage, [{ chainId: 1, name: 'Ethereum', connected: 'yes' }]),
+    /Invalid network catalog/u
+  )
+
+  assert.deepEqual(await loadNetworkCatalogCache(storage), chains)
+  assert.equal(
+    parseNetworkCatalogCache({ version: 1, chains: [{ chainId: 1, name: '' }] }),
+    undefined
+  )
+})

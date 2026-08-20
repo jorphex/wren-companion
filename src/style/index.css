@@ -31,6 +31,9 @@
   --wren-danger: #df8377;
   --wren-danger-soft: #2a1716;
   --wren-focus: #bfa77e;
+  --wren-focus-on-accent: #111513;
+  --wren-warning: #ddb467;
+  --wren-warning-soft: #281f12;
   --wren-chain-ethereum: #7185c2;
   --wren-chain-optimism: #bd5d62;
   --wren-chain-gnosis: #5f806f;
@@ -113,15 +116,6 @@ a,
 a:hover,
 a:visited {
   text-decoration: none;
-}
-
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 3px;
-  background: var(--wren-border-default);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -86,10 +86,17 @@ async function getLocalSetting(tab) {
 
   if (!result || result.result?.url !== tab.url) return { value: false }
 
+  const documentId =
+    typeof result.documentId === 'string' &&
+    result.documentId.length > 0 &&
+    result.documentId.length <= 256
+      ? result.documentId
+      : undefined
+
   try {
     return {
       value: JSON.parse(result.result.value || false),
-      documentId: result.documentId,
+      ...(documentId ? { documentId } : {}),
       url: result.result.url
     }
   } catch {
@@ -99,7 +106,12 @@ async function getLocalSetting(tab) {
 
 async function setLocalSetting(tab, document, setting, value) {
   const activeTab = await getActiveTab()
-  if (activeTab?.id !== tab.id || !isInjectedUrl(activeTab.url) || activeTab.url !== document.url) {
+  if (
+    !document?.documentId ||
+    activeTab?.id !== tab.id ||
+    !isInjectedUrl(activeTab.url) ||
+    activeTab.url !== document.url
+  ) {
     return false
   }
 
@@ -118,6 +130,31 @@ async function setLocalSetting(tab, document, setting, value) {
   return results?.[0]?.result === true
 }
 
+async function reloadCapturedTab(tab, document) {
+  const activeTab = await getActiveTab()
+  if (
+    !document?.documentId ||
+    activeTab?.id !== tab.id ||
+    !isInjectedUrl(activeTab.url) ||
+    activeTab.url !== document.url
+  ) {
+    return false
+  }
+
+  const results = await executeScript(
+    tab.id,
+    (expectedUrl) => {
+      if (window.location.href !== expectedUrl) return false
+      window.location.reload()
+      return true
+    },
+    [document.url],
+    document.documentId
+  )
+
+  return results?.[0]?.result === true
+}
+
 const SettingsScroll = styled.main`
   display: flex;
   flex-direction: column;
@@ -126,6 +163,11 @@ const SettingsScroll = styled.main`
   box-sizing: border-box;
   max-height: 600px;
   background: transparent;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   > * {
     flex: none;
@@ -338,6 +380,10 @@ const StateNoticeAction = styled.button`
     background-color: var(--wren-accent-active);
   }
 
+  &:focus-visible {
+    outline-color: var(--wren-focus-on-accent);
+  }
+
   &:disabled {
     border-color: var(--wren-border-subtle);
     color: var(--wren-text-muted);
@@ -374,8 +420,9 @@ const NetworkRefreshWarning = styled.div`
   justify-content: space-between;
   gap: 10px;
   border-bottom: 1px solid var(--wren-border-subtle);
-  color: var(--wren-text-secondary);
-  background: var(--wren-accent-primary-soft);
+  border-inline-start: 3px solid var(--wren-warning);
+  color: var(--wren-warning);
+  background: var(--wren-warning-soft);
   font-size: 12px;
 
   button {
@@ -383,7 +430,7 @@ const NetworkRefreshWarning = styled.div`
     min-height: 44px;
     padding: 0 10px;
     flex: none;
-    border: 1px solid var(--wren-border-default);
+    border: 1px solid var(--wren-warning);
     border-radius: var(--wren-radius-sm);
     color: var(--wren-text-primary);
     background: var(--wren-bg-elevated);
@@ -509,6 +556,10 @@ const Download = styled.a`
     transform: translateY(1px);
     background-color: var(--wren-accent-active);
   }
+
+  &:focus-visible {
+    outline-color: var(--wren-focus-on-accent);
+  }
 `
 
 const CurrentOriginTitle = styled.div`
@@ -585,6 +636,17 @@ const ChainLedger = styled.div`
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wren-border-default) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--wren-border-default);
+  }
 `
 
 const ChainButtonLabel = styled.div`
@@ -883,7 +945,7 @@ class _Settings extends React.Component {
               <ClusterValue>
                 <PairingPanel>
                   <PairingTitle>
-                    {identityChanged ? 'Wren identity changed' : 'Companion Authentication Failed'}
+                    {identityChanged ? 'Wren identity changed' : 'Companion authentication failed'}
                   </PairingTitle>
                   <PairingDetail>
                     {identityChanged
@@ -939,7 +1001,7 @@ class _Settings extends React.Component {
             <ClusterRow>
               <ClusterValue>
                 <PairingPanel>
-                  <PairingTitle>Resetting Pairing</PairingTitle>
+                  <PairingTitle>Resetting pairing</PairingTitle>
                   <PairingDetail>A new installation key is being created.</PairingDetail>
                 </PairingPanel>
               </ClusterValue>
@@ -1019,21 +1081,15 @@ class _Settings extends React.Component {
   }
 
   tabNotConnected(interactionLocked) {
+    const canRefresh = Boolean(this.props.tabDocument?.documentId)
     return this.statusNotice(
-      'Refresh this tab',
-      'This tab has not confirmed its Wren Companion connection yet.',
-      'Refresh this tab',
-      'Tab not connected',
-      async () => {
-        const activeTab = await getActiveTab()
-        if (
-          activeTab?.id === this.props.tab.id &&
-          activeTab.url === this.props.tabDocument.url &&
-          isInjectedUrl(activeTab.url)
-        ) {
-          chrome.tabs.reload(this.props.tab.id)
-        }
-      },
+      canRefresh ? 'Refresh this tab' : 'Refresh unavailable',
+      canRefresh
+        ? 'Wren has not confirmed this tab’s connection yet.'
+        : 'Companion could not confirm this tab’s current document. Reload the tab, then reopen Companion.',
+      canRefresh ? 'Refresh this tab' : undefined,
+      canRefresh ? 'Not connected' : 'Document changed',
+      canRefresh ? () => reloadCapturedTab(this.props.tab, this.props.tabDocument) : undefined,
       interactionLocked
     )
   }
@@ -1055,7 +1111,7 @@ class _Settings extends React.Component {
       return this.statusNotice(
         'Network switch declined',
         'Wren kept the current network.',
-        'Try again',
+        'Retry network switch',
         'Declined',
         () => this.setState({ chainSwitch: { status: 'idle' } }),
         interactionLocked
@@ -1107,7 +1163,7 @@ class _Settings extends React.Component {
     return this.statusNotice(
       'Networks unavailable',
       'Wren could not refresh its available networks.',
-      'Try again',
+      'Refresh networks',
       'Unavailable',
       () => postFrameMessage({ type: 'refresh' }),
       interactionLocked
@@ -1124,7 +1180,7 @@ class _Settings extends React.Component {
           disabled={interactionLocked || this.store('chainsStatus') === 'loading'}
           onClick={() => postFrameMessage({ type: 'refresh' })}
         >
-          Try again
+          Refresh networks
         </button>
       </NetworkRefreshWarning>
     )
@@ -1285,7 +1341,7 @@ class _Settings extends React.Component {
                   type="button"
                   onClick={() => this.identitySwitch(identitySwitch.target)}
                 >
-                  Try again
+                  Retry identity switch
                 </StateNoticeAction>
                 <StateNoticeStatus>Failed</StateNoticeStatus>
               </StateNotice>

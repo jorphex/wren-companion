@@ -76,6 +76,7 @@ export default [
       'src/legacy-provider.js',
       'src/network-catalog-cache.js',
       'src/network-refresh.js',
+      'src/page-session-capacity.js',
       'src/page-connection.js',
       'src/timers.js'
     ],

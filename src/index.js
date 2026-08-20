@@ -13,6 +13,11 @@ const {
   saveNetworkCatalogCache
 } = require('./network-catalog-cache')
 const { PageSession, derivePageOwner } = require('./page-session')
+const {
+  evictIdleTopSessions,
+  sessionsForTab,
+  terminatePageSession
+} = require('./page-session-capacity')
 const { preferredTabSession, tabSessionState } = require('./tab-session-state')
 
 const frameUrl = (role) =>
@@ -404,14 +409,17 @@ chrome.runtime.onConnect.addListener((port) => {
     if (!owner) return rejectPagePort(port)
     for (const existing of pageSessions) {
       if (existing.owner.tabId === owner.tabId && existing.owner.frameId === owner.frameId) {
-        existing.safePost({ type: 'fatal' })
-        existing.close()
-        setTimeout(() => existing.port.disconnect(), 100)
+        terminatePageSession(existing)
       }
     }
-    const tabSessionCount = [...pageSessions].filter(
-      (session) => !session.closed && session.owner.tabId === owner.tabId
-    ).length
+    evictIdleTopSessions(pageSessions, {
+      tabId: owner.tabId,
+      maxGlobalSessions: MAX_PAGE_SESSIONS,
+      maxTabSessions: MAX_PAGE_SESSIONS_PER_TAB,
+      requiredGlobalSlots: 1,
+      requiredTabSlots: 1
+    })
+    const tabSessionCount = sessionsForTab(pageSessions, owner.tabId).length
     if (pageSessions.size >= MAX_PAGE_SESSIONS || tabSessionCount >= MAX_PAGE_SESSIONS_PER_TAB) {
       return rejectPagePort(port)
     }

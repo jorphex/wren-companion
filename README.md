@@ -1,5 +1,12 @@
 # Wren Companion
 
+## Typography
+
+Companion bundles Recursive for UI text. Addresses, numbers, URLs, and other
+technical values use the browser monospace stack; Fira Code is not currently
+bundled or claimed as a runtime dependency. Adding it requires a licensed
+webfont and an explicit `@font-face` declaration.
+
 Wren Companion connects Ethereum and EVM dapps in the browser to the
 [Wren](https://github.com/jorphex/wren) desktop wallet. It injects an
 EIP-1193 provider and announces Wren through EIP-6963; Wren keeps account,

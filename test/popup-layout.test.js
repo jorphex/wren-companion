@@ -184,6 +184,34 @@ test('identity reload writes the confirmed value only to the captured active doc
   assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
 })
 
+test('tab refresh runs only in the captured document and is unavailable without its identity', () => {
+  assert.match(settingsSource, /async function reloadCapturedTab/u)
+  assert.match(settingsSource, /documentIds: \[documentId\]/u)
+  assert.match(settingsSource, /window\.location\.reload\(\)/u)
+  assert.match(settingsSource, /!document\?\.documentId/u)
+  assert.match(
+    settingsSource,
+    /const canRefresh = Boolean\(this\.props\.tabDocument\?\.documentId\)/u
+  )
+  assert.match(settingsSource, /canRefresh \? 'Refresh this tab' : 'Refresh unavailable'/u)
+  assert.doesNotMatch(settingsSource, /chrome\.tabs\.reload/u)
+})
+
+test('uses a distinct warning role, readable accent focus, one styled ledger scrollbar, and truthful typography docs', () => {
+  assert.match(globalStyle, /--wren-focus-on-accent:\s*#111513;/u)
+  assert.match(globalStyle, /--wren-warning:\s*#ddb467;/u)
+  assert.match(globalStyle, /--wren-warning-soft:\s*#281f12;/u)
+  assert.match(settingsSource, /border-inline-start:\s*3px solid var\(--wren-warning\);/u)
+  assert.match(settingsSource, /background:\s*var\(--wren-warning-soft\);/u)
+  assert.match(settingsSource, /outline-color:\s*var\(--wren-focus-on-accent\);/u)
+  assert.match(settingsSource, /const ChainLedger = styled\.div`[\s\S]*scrollbar-width:\s*thin;/u)
+  assert.doesNotMatch(globalStyle, /::-webkit-scrollbar/u)
+  assert.match(
+    fs.readFileSync(path.join(root, 'README.md'), 'utf8'),
+    /Fira Code is not currently\s+bundled/u
+  )
+})
+
 test('pending notices cannot expose a dead action', () => {
   assert.match(settingsSource, /const isInteractive = typeof onAction === 'function' && !disabled/u)
   assert.match(settingsSource, /disabled=\{!isInteractive\}/u)

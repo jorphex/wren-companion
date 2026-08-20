@@ -335,6 +335,22 @@ async function qualifyChromePopupLayout(settings, state) {
   return reports
 }
 
+async function assertRefreshWarningRole(evaluate, browser) {
+  const warning = await evaluate(`(() => {
+    const element = document.querySelector('[role="status"]:has(button)');
+    if (!element || !element.textContent.includes('could not refresh')) return;
+    const style = getComputedStyle(element);
+    return { color: style.color, background: style.backgroundColor, border: style.borderInlineStartColor };
+  })()`)
+  assert.ok(warning, `${browser} network refresh warning is present`)
+  assert.notEqual(warning.color, warning.background, `${browser} warning text remains readable`)
+  assert.notEqual(
+    warning.border,
+    warning.background,
+    `${browser} warning uses its straw border role`
+  )
+}
+
 async function firefoxEvaluate(marionette, expression) {
   const result = await marionette.request('WebDriver:ExecuteScript', {
     script: `return (${expression});`,
@@ -647,10 +663,11 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
       15_000
     )
+    await assertRefreshWarningRole((expression) => settings.evaluate(expression), 'Chrome')
     await qualifyChromePopupLayout(settings, 'network-refresh-error')
     desktop.availableChains = availableChains
     await settings.evaluate(
-      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Try again').click()`
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Refresh networks').click()`
     )
     await settings.waitFor(
       `!document.body.textContent.includes('Wren could not refresh its available networks.')`
@@ -979,6 +996,10 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       marionette,
       `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
       'Firefox network refresh error'
+    )
+    await assertRefreshWarningRole(
+      (expression) => firefoxEvaluate(marionette, expression),
+      'Firefox'
     )
     await qualifyFirefoxPopupLayout(marionette, 'network-refresh-error')
     desktop.availableChains = availableChains
