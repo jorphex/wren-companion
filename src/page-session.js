@@ -98,6 +98,9 @@ class PageSession {
     this.everUsed = false
     this.closed = false
     this.connected = false
+    this.pageConnectionMethods = new Set()
+    this.pageConnectionConfirmed = false
+    this.currentChain = ''
 
     this.handlePortMessage = this.handlePortMessage.bind(this)
     this.handlePortDisconnect = this.handlePortDisconnect.bind(this)
@@ -145,7 +148,12 @@ class PageSession {
     const transportId = `frame-page:${this.randomId()}`
     this.sendRequest(
       { ...request, id: transportId },
-      { type: 'page', pageId: request.id, method: request.method },
+      {
+        type: 'page',
+        pageId: request.id,
+        method: request.method,
+        connectionMessage
+      },
       connectionMessage
     )
   }
@@ -307,6 +315,9 @@ class PageSession {
           pending.reject(Object.assign(new Error(payload.error.message), payload.error))
         else pending.resolve(payload.result)
       } else {
+        if (pending.connectionMessage && !payload.error) {
+          this.confirmPageConnectionMethod(pending.method, payload.result)
+        }
         this.pageIds.delete(pending.pageId)
         this.postRpc({ ...payload, id: pending.pageId })
       }
@@ -405,8 +416,23 @@ class PageSession {
   setConnected(connected) {
     if (this.connected === connected) return
     this.connected = connected
+    if (!connected) {
+      this.pageConnectionMethods.clear()
+      this.pageConnectionConfirmed = false
+      this.currentChain = ''
+    }
     this.safePost({ type: 'transport', connected })
     this.onStateChange(this, connected)
+  }
+
+  confirmPageConnectionMethod(method, result) {
+    if (method === 'eth_chainId' && typeof result === 'string') this.currentChain = result
+    this.pageConnectionMethods.add(method)
+    const confirmed =
+      this.pageConnectionMethods.has('eth_chainId') && this.pageConnectionMethods.has('net_version')
+    if (this.pageConnectionConfirmed === confirmed) return
+    this.pageConnectionConfirmed = confirmed
+    this.onStateChange(this, this.connected)
   }
 
   handlePortDisconnect() {
@@ -430,6 +456,9 @@ class PageSession {
       }
     }
     this.connected = false
+    this.pageConnectionMethods.clear()
+    this.pageConnectionConfirmed = false
+    this.currentChain = ''
     this.onStateChange(this, false)
   }
 }

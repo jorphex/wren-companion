@@ -217,6 +217,66 @@ test('marks only chain identity requests as extension connection traffic', () =>
   assert.equal(sockets[0].sent.length, 1)
 })
 
+test('confirms the page only after both provider identity requests succeed', () => {
+  const states = []
+  const port = new FakePort()
+  const sockets = []
+  let sequence = 0
+  const session = new PageSession({
+    port,
+    owner: { tabId: 1, frameId: 0, origin: 'https://example.test' },
+    createSocket: () => {
+      const socket = new FakeSocket()
+      sockets.push(socket)
+      return socket
+    },
+    randomId: () => `id-${++sequence}`,
+    onStateChange: (changed) =>
+      states.push({ confirmed: changed.pageConnectionConfirmed, chainId: changed.currentChain })
+  })
+
+  port.onMessage.emit({
+    type: 'connection',
+    payload: { jsonrpc: '2.0', id: 1, method: 'net_version', params: [] }
+  })
+  port.onMessage.emit({
+    type: 'connection',
+    payload: { jsonrpc: '2.0', id: 2, method: 'eth_chainId', params: [] }
+  })
+  sockets[0].open()
+  const [networkRequest, chainRequest] = sockets[0].sent.map((value) => JSON.parse(value))
+
+  sockets[0].emit('message', {
+    data: JSON.stringify({ jsonrpc: '2.0', id: networkRequest.id, result: '8453' })
+  })
+  assert.equal(session.pageConnectionConfirmed, false)
+  sockets[0].emit('message', {
+    data: JSON.stringify({ jsonrpc: '2.0', id: chainRequest.id, result: '0x2105' })
+  })
+
+  assert.equal(session.pageConnectionConfirmed, true)
+  assert.equal(session.currentChain, '0x2105')
+  assert.deepEqual(states.at(-1), { confirmed: true, chainId: '0x2105' })
+
+  sockets[0].close(1006, 'lost')
+  assert.equal(session.pageConnectionConfirmed, false)
+  assert.equal(session.currentChain, '')
+})
+
+test('popup control queries do not impersonate a page-provider handshake', async () => {
+  const { session, sockets } = setup()
+  const result = session.requestControl('eth_chainId', [], true)
+  sockets[0].open()
+  const load = JSON.parse(sockets[0].sent[0])
+  sockets[0].emit('message', {
+    data: JSON.stringify({ jsonrpc: '2.0', id: load.id, result: '0x1' })
+  })
+
+  assert.equal(await result, '0x1')
+  assert.equal(session.pageConnectionConfirmed, false)
+  assert.equal(session.currentChain, '')
+})
+
 test('returns a response only through the owning document port', () => {
   const first = setup({ tabId: 1, frameId: 0, origin: 'https://one.test' })
   const second = setup({ tabId: 1, frameId: 2, origin: 'https://two.test' })

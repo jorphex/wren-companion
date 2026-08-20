@@ -32,6 +32,7 @@ const credentialStore = new CredentialStore({ storage: new IndexedDbCredentialSt
 const frameState = {
   connected: false,
   availableChains: [],
+  chainsStatus: 'idle',
   authentication: { status: 'disconnected' }
 }
 let chainsRefreshPromise
@@ -43,17 +44,23 @@ function setIcon(path) {
 function publishState() {
   for (const port of settingsPorts) {
     try {
-      port.postMessage({ type: 'state', ...frameState, currentChain: port.frameChainId || '' })
+      port.postMessage({
+        type: 'state',
+        ...frameState,
+        currentChain: port.frameChainId || '',
+        tabStatus: port.frameTabStatus || 'checking'
+      })
     } catch {
       // The popup may close while state is being published.
     }
   }
 }
 
-function setPortChain(port, chainId) {
+function setPortChain(port, chainId, tabStatus = chainId ? 'connected' : 'disconnected') {
   port.frameChainId = chainId
+  port.frameTabStatus = tabStatus
   try {
-    port.postMessage({ type: 'state', ...frameState, currentChain: chainId })
+    port.postMessage({ type: 'state', ...frameState, currentChain: chainId, tabStatus })
   } catch {
     // The popup may close while a chain request is resolving.
   }
@@ -116,7 +123,7 @@ function handlePageAuthenticationStatus(authentication) {
   if (authentication.status !== 'error' || !authenticationReady || authRecoveryPending) return
   authRecoveryPending = true
   setAuthenticationReady(false)
-  setFrameState({ connected: false, availableChains: [], authentication })
+  setFrameState({ connected: false, availableChains: [], chainsStatus: 'idle', authentication })
   queueMicrotask(() => {
     authRecoveryPending = false
     control.restart()
@@ -180,31 +187,53 @@ async function activeTopSession(port) {
   const session = topSessionForTab(tab.id)
   if (!session || session.owner.origin !== origin) return
   port.frameTabId = tab.id
+  port.frameOrigin = origin
   return session
+}
+
+function publishSessionState(session) {
+  for (const port of settingsPorts) {
+    if (port.frameTabId !== session.owner.tabId || port.frameOrigin !== session.owner.origin)
+      continue
+    setPortChain(
+      port,
+      session.currentChain || port.frameChainId || '',
+      session.pageConnectionConfirmed ? 'connected' : 'disconnected'
+    )
+  }
 }
 
 const control = new ControlClient({
   createSocket: () => createAuthenticatedSocket('control', handleControlAuthenticationStatus),
   onOpen: (client) => {
     setAuthenticationReady(true)
-    setFrameState({ connected: true })
+    setFrameState({ connected: true, chainsStatus: 'loading' })
     refreshAvailableChains(client)
   },
   onClose: () => {
     setAuthenticationReady(false)
-    for (const port of settingsPorts) port.frameChainId = ''
-    setFrameState({ connected: false, availableChains: [] })
+    for (const port of settingsPorts) {
+      port.frameChainId = ''
+      port.frameTabStatus = 'checking'
+    }
+    setFrameState({ connected: false, availableChains: [], chainsStatus: 'idle' })
   }
 })
 control.connect()
 
 function refreshAvailableChains(client = control) {
   if (chainsRefreshPromise) return chainsRefreshPromise
+  if (!frameState.availableChains.length) setFrameState({ chainsStatus: 'loading' })
   chainsRefreshPromise = client
     .request('wallet_getEthereumChains')
-    .then((chains) => setFrameState({ availableChains: Array.isArray(chains) ? chains : [] }))
+    .then((chains) =>
+      setFrameState({
+        availableChains: Array.isArray(chains) ? chains : [],
+        chainsStatus: 'ready'
+      })
+    )
     .catch(() => {
-      if (frameState.connected) setFrameState({ availableChains: [] })
+      if (frameState.connected) setFrameState({ chainsStatus: 'error' })
     })
     .finally(() => {
       chainsRefreshPromise = undefined
@@ -214,15 +243,23 @@ function refreshAvailableChains(client = control) {
 
 async function initializeSettingsPort(port) {
   settingsPorts.add(port)
+  port.frameTabStatus = 'checking'
   publishState()
   try {
+    const chains = refreshAvailableChains()
     const session = await activeTopSession(port)
-    if (session) {
-      const chainId = await session.requestControl('eth_chainId', [], true)
-      if (typeof chainId === 'string') setPortChain(port, chainId)
-    }
+    if (!session) return setPortChain(port, '', 'disconnected')
+    const chainId = await session.requestControl('eth_chainId', [], true)
+    setPortChain(
+      port,
+      typeof chainId === 'string' ? chainId : session.currentChain,
+      session.pageConnectionConfirmed ? 'connected' : 'disconnected'
+    )
+    await chains
   } catch {
-    // The active tab can disappear while the popup is opening.
+    // The active tab can disappear or its document transport can close while
+    // the popup is opening.
+    setPortChain(port, '', 'disconnected')
   }
 }
 
@@ -245,10 +282,19 @@ async function handleSettingsMessage(port, message) {
     if (keys.length !== 1) return
     if (port.frameRefreshPromise) return port.frameRefreshPromise
     port.frameRefreshPromise = (async () => {
+      const chains = refreshAvailableChains()
       const session = await activeTopSession(port)
-      if (!session) return setPortChain(port, '')
+      if (!session) {
+        await chains
+        return setPortChain(port, '', 'disconnected')
+      }
       const chainId = await session.requestControl('eth_chainId', [], true).catch(() => '')
-      setPortChain(port, typeof chainId === 'string' ? chainId : '')
+      setPortChain(
+        port,
+        typeof chainId === 'string' ? chainId : session.currentChain,
+        session.pageConnectionConfirmed ? 'connected' : 'disconnected'
+      )
+      await chains
     })().finally(() => {
       port.frameRefreshPromise = undefined
     })
@@ -267,6 +313,7 @@ async function handleSettingsMessage(port, message) {
       setFrameState({
         connected: false,
         availableChains: [],
+        chainsStatus: 'idle',
         authentication: { status: 'rotating' }
       })
       try {
@@ -356,6 +403,7 @@ chrome.runtime.onConnect.addListener((port) => {
       releaseRequest: (bytes) => releasePageRequest(owner, bytes),
       onStateChange: (changedSession) => {
         if (changedSession.closed) pageSessions.delete(changedSession)
+        publishSessionState(changedSession)
       }
     })
     pageSessions.add(session)

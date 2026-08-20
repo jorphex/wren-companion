@@ -14,6 +14,8 @@ const initialState = {
   desktopStatus: 'checking',
   chainSwitchResult: null,
   authentication: { status: 'disconnected' },
+  chainsStatus: 'idle',
+  tabStatus: 'checking',
   appearAsMM: false
 }
 
@@ -23,6 +25,12 @@ const actions = {
   },
   setCurrentChain: (u, chain) => {
     u('currentChain', () => chain)
+  },
+  setChainsStatus: (u, status) => {
+    u('chainsStatus', () => status)
+  },
+  setTabStatus: (u, status) => {
+    u('tabStatus', () => status)
   },
   setFrameConnected: (u, connected) => {
     u('frameConnected', () => connected)
@@ -1037,6 +1045,26 @@ class _Settings extends React.Component {
     )
   }
 
+  networksLoading() {
+    return this.statusNotice(
+      'Loading networks',
+      'Reading available networks from Wren.',
+      undefined,
+      'Checking'
+    )
+  }
+
+  networksUnavailable(interactionLocked) {
+    return this.statusNotice(
+      'Networks unavailable',
+      'Wren could not refresh its available networks.',
+      'Try again',
+      'Unavailable',
+      () => postFrameMessage({ type: 'refresh' }),
+      interactionLocked
+    )
+  }
+
   unsupportedTab(origin) {
     return (
       <Cluster>
@@ -1277,11 +1305,30 @@ class _Settings extends React.Component {
       return <MainPanel>{this.unsupportedTab(protocol + origin)}</MainPanel>
     }
 
-    if (!this.store('currentChain')) {
+    if (this.store('tabStatus') === 'checking') {
+      return (
+        <MainPanel>
+          {this.statusNotice(
+            'Checking this tab',
+            'Confirming this tab’s Wren connection.',
+            undefined,
+            'Checking'
+          )}
+        </MainPanel>
+      )
+    }
+
+    if (this.store('tabStatus') !== 'connected') {
       return <MainPanel>{this.tabNotConnected(interactionLocked)}</MainPanel>
     }
 
     if (!availableChains.length) {
+      if (this.store('chainsStatus') === 'loading') {
+        return <MainPanel>{this.networksLoading()}</MainPanel>
+      }
+      if (this.store('chainsStatus') === 'error') {
+        return <MainPanel>{this.networksUnavailable(interactionLocked)}</MainPanel>
+      }
       return <MainPanel>{this.noNetworks(interactionLocked)}</MainPanel>
     }
 
@@ -1348,6 +1395,8 @@ const disconnectFramePort = () => {
   store.setFrameConnected(false)
   store.setDesktopStatus('unavailable')
   store.setAuthentication({ status: 'disconnected' })
+  store.setChainsStatus('idle')
+  store.setTabStatus('checking')
 }
 
 const postFrameMessage = (message) => {
@@ -1382,7 +1431,9 @@ frameConnect.onMessage.addListener((state) => {
   store.setDesktopStatus(desktopStatus)
   store.setAuthentication(authentication)
   store.setChains(state.availableChains)
+  store.setChainsStatus(state.chainsStatus)
   store.setCurrentChain(state.currentChain)
+  store.setTabStatus(state.tabStatus)
 })
 
 async function getInitialSettings(tab) {

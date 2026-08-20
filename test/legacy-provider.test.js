@@ -16,8 +16,9 @@ test('installs Wren only when no legacy provider exists', () => {
   })
 })
 
-test('never overwrites an existing configurable provider', () => {
+test('joins an existing configurable provider without replacing it', () => {
   const existing = { isOtherWallet: true }
+  const provider = { isFrame: true }
   const target = {}
   Object.defineProperty(target, 'ethereum', {
     value: existing,
@@ -25,15 +26,38 @@ test('never overwrites an existing configurable provider', () => {
     configurable: true
   })
 
-  assert.equal(installLegacyProvider(target, { isFrame: true }), false)
+  assert.equal(installLegacyProvider(target, provider), true)
   assert.equal(target.ethereum, existing)
+  assert.deepEqual(existing.providers, [existing, provider])
 })
 
-test('never shadows an inherited provider', () => {
+test('joins an inherited provider without shadowing it', () => {
   const existing = { isOtherWallet: true }
+  const provider = { isFrame: true }
   const target = Object.create({ ethereum: existing })
+
+  assert.equal(installLegacyProvider(target, provider), true)
+  assert.equal(target.ethereum, existing)
+  assert.equal(Object.hasOwn(target, 'ethereum'), false)
+  assert.deepEqual(existing.providers, [existing, provider])
+})
+
+test('appends to a multi-provider legacy list without duplicating Wren', () => {
+  const first = { isOtherWallet: true }
+  const second = { isAnotherWallet: true }
+  const provider = { isFrame: true }
+  const target = { ethereum: { providers: [first, second] } }
+
+  assert.equal(installLegacyProvider(target, provider), true)
+  assert.equal(installLegacyProvider(target, provider), true)
+  assert.deepEqual(target.ethereum.providers, [first, second, provider])
+})
+
+test('leaves a sealed incumbent provider untouched', () => {
+  const existing = Object.freeze({ isOtherWallet: true })
+  const target = { ethereum: existing }
 
   assert.equal(installLegacyProvider(target, { isFrame: true }), false)
   assert.equal(target.ethereum, existing)
-  assert.equal(Object.hasOwn(target, 'ethereum'), false)
+  assert.equal(existing.providers, undefined)
 })

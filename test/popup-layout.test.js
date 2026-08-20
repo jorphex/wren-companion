@@ -146,6 +146,18 @@ test('network switch feedback is driven by the background result rather than a t
   assert.doesNotMatch(settingsSource, /currentChain === chainSwitch\.targetChain/u)
 })
 
+test('popup distinguishes tab confirmation and network refresh from real empty state', () => {
+  assert.match(backgroundSource, /tabStatus: port\.frameTabStatus \|\| 'checking'/u)
+  assert.match(backgroundSource, /refreshAvailableChains\(\)/u)
+  assert.match(backgroundSource, /chainsStatus: 'loading'/u)
+  assert.match(backgroundSource, /chainsStatus: 'ready'/u)
+  assert.match(backgroundSource, /chainsStatus: 'error'/u)
+  assert.match(settingsSource, /this\.store\('tabStatus'\) === 'checking'/u)
+  assert.match(settingsSource, /this\.store\('tabStatus'\) !== 'connected'/u)
+  assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'loading'/u)
+  assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'error'/u)
+})
+
 test('identity reload writes the confirmed value only to the captured active document', () => {
   assert.match(settingsSource, /setLocalSetting\(\n\s*this\.props\.tab,/u)
   assert.match(settingsSource, /activeTab\?\.id !== tab\.id/u)
