@@ -6,6 +6,7 @@ const {
 } = require('./authentication-actions')
 const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
+const { networkRefreshFailure, networkRefreshSuccess } = require('./network-refresh')
 const { PageSession, derivePageOwner } = require('./page-session')
 
 const frameUrl = (role) =>
@@ -33,9 +34,11 @@ const frameState = {
   connected: false,
   availableChains: [],
   chainsStatus: 'idle',
+  chainsError: null,
   authentication: { status: 'disconnected' }
 }
 let chainsRefreshPromise
+let lastChainsErrorDiagnostic = ''
 
 function setIcon(path) {
   chrome.action.setIcon({ path }).catch(() => {})
@@ -123,7 +126,13 @@ function handlePageAuthenticationStatus(authentication) {
   if (authentication.status !== 'error' || !authenticationReady || authRecoveryPending) return
   authRecoveryPending = true
   setAuthenticationReady(false)
-  setFrameState({ connected: false, availableChains: [], chainsStatus: 'idle', authentication })
+  setFrameState({
+    connected: false,
+    availableChains: [],
+    chainsStatus: 'idle',
+    chainsError: null,
+    authentication
+  })
   queueMicrotask(() => {
     authRecoveryPending = false
     control.restart()
@@ -198,7 +207,11 @@ function publishSessionState(session) {
     setPortChain(
       port,
       session.currentChain || port.frameChainId || '',
-      session.pageConnectionConfirmed ? 'connected' : 'disconnected'
+      session.pageConnectionConfirmed
+        ? 'connected'
+        : session.connected && (session.currentChain || port.frameChainId)
+          ? 'ready'
+          : 'checking'
     )
   }
 }
@@ -207,33 +220,44 @@ const control = new ControlClient({
   createSocket: () => createAuthenticatedSocket('control', handleControlAuthenticationStatus),
   onOpen: (client) => {
     setAuthenticationReady(true)
-    setFrameState({ connected: true, chainsStatus: 'loading' })
+    setFrameState({ connected: true, chainsStatus: 'loading', chainsError: null })
     refreshAvailableChains(client)
   },
   onClose: () => {
     setAuthenticationReady(false)
+    lastChainsErrorDiagnostic = ''
     for (const port of settingsPorts) {
       port.frameChainId = ''
       port.frameTabStatus = 'checking'
     }
-    setFrameState({ connected: false, availableChains: [], chainsStatus: 'idle' })
+    setFrameState({
+      connected: false,
+      availableChains: [],
+      chainsStatus: 'idle',
+      chainsError: null
+    })
   }
 })
 control.connect()
 
 function refreshAvailableChains(client = control) {
   if (chainsRefreshPromise) return chainsRefreshPromise
-  if (!frameState.availableChains.length) setFrameState({ chainsStatus: 'loading' })
+  setFrameState({ chainsStatus: 'loading', chainsError: null })
   chainsRefreshPromise = client
     .request('wallet_getEthereumChains')
-    .then((chains) =>
-      setFrameState({
-        availableChains: Array.isArray(chains) ? chains : [],
-        chainsStatus: 'ready'
-      })
-    )
-    .catch(() => {
-      if (frameState.connected) setFrameState({ chainsStatus: 'error' })
+    .then((chains) => {
+      lastChainsErrorDiagnostic = ''
+      setFrameState(networkRefreshSuccess(chains))
+    })
+    .catch((error) => {
+      if (!frameState.connected) return
+      const failure = networkRefreshFailure(error)
+      const diagnostic = JSON.stringify(failure.chainsError)
+      if (diagnostic !== lastChainsErrorDiagnostic) {
+        lastChainsErrorDiagnostic = diagnostic
+        console.warn('Wren Companion could not refresh networks', failure.chainsError)
+      }
+      setFrameState(failure)
     })
     .finally(() => {
       chainsRefreshPromise = undefined
@@ -253,7 +277,7 @@ async function initializeSettingsPort(port) {
     setPortChain(
       port,
       typeof chainId === 'string' ? chainId : session.currentChain,
-      session.pageConnectionConfirmed ? 'connected' : 'disconnected'
+      session.pageConnectionConfirmed ? 'connected' : 'ready'
     )
     await chains
   } catch {
@@ -288,12 +312,12 @@ async function handleSettingsMessage(port, message) {
         await chains
         return setPortChain(port, '', 'disconnected')
       }
-      const chainId = await session.requestControl('eth_chainId', [], true).catch(() => '')
-      setPortChain(
-        port,
-        typeof chainId === 'string' ? chainId : session.currentChain,
-        session.pageConnectionConfirmed ? 'connected' : 'disconnected'
-      )
+      const chainId = await session.requestControl('eth_chainId', [], true).catch(() => undefined)
+      if (typeof chainId !== 'string' || !chainId) {
+        await chains
+        return setPortChain(port, '', 'disconnected')
+      }
+      setPortChain(port, chainId, session.pageConnectionConfirmed ? 'connected' : 'ready')
       await chains
     })().finally(() => {
       port.frameRefreshPromise = undefined
@@ -314,6 +338,7 @@ async function handleSettingsMessage(port, message) {
         connected: false,
         availableChains: [],
         chainsStatus: 'idle',
+        chainsError: null,
         authentication: { status: 'rotating' }
       })
       try {

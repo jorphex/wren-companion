@@ -15,6 +15,7 @@ const initialState = {
   chainSwitchResult: null,
   authentication: { status: 'disconnected' },
   chainsStatus: 'idle',
+  chainsError: null,
   tabStatus: 'checking',
   appearAsMM: false
 }
@@ -28,6 +29,9 @@ const actions = {
   },
   setChainsStatus: (u, status) => {
     u('chainsStatus', () => status)
+  },
+  setChainsError: (u, error) => {
+    u('chainsError', () => error)
   },
   setTabStatus: (u, status) => {
     u('tabStatus', () => status)
@@ -359,6 +363,42 @@ const StateNoticeActions = styled.div`
 
   button {
     min-height: 44px;
+  }
+`
+
+const NetworkRefreshWarning = styled.div`
+  display: flex;
+  min-height: 58px;
+  padding: 7px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--wren-border-subtle);
+  color: var(--wren-text-secondary);
+  background: var(--wren-accent-primary-soft);
+  font-size: 12px;
+
+  button {
+    appearance: none;
+    min-height: 44px;
+    padding: 0 10px;
+    flex: none;
+    border: 1px solid var(--wren-border-default);
+    border-radius: var(--wren-radius-sm);
+    color: var(--wren-text-primary);
+    background: var(--wren-bg-elevated);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 620;
+  }
+
+  button:hover:not(:disabled) {
+    background: var(--wren-surface-hover);
+  }
+
+  button:focus-visible {
+    outline: 2px solid var(--wren-focus);
+    outline-offset: 2px;
   }
 `
 
@@ -1065,6 +1105,22 @@ class _Settings extends React.Component {
     )
   }
 
+  networkRefreshWarning(interactionLocked) {
+    const error = this.store('chainsError')
+    return (
+      <NetworkRefreshWarning role="status" title={error?.message || undefined}>
+        <span>Wren could not refresh its available networks.</span>
+        <button
+          type="button"
+          disabled={interactionLocked || this.store('chainsStatus') === 'loading'}
+          onClick={() => postFrameMessage({ type: 'refresh' })}
+        >
+          Try again
+        </button>
+      </NetworkRefreshWarning>
+    )
+  }
+
   unsupportedTab(origin) {
     return (
       <Cluster>
@@ -1318,7 +1374,7 @@ class _Settings extends React.Component {
       )
     }
 
-    if (this.store('tabStatus') !== 'connected') {
+    if (!['ready', 'connected'].includes(this.store('tabStatus'))) {
       return <MainPanel>{this.tabNotConnected(interactionLocked)}</MainPanel>
     }
 
@@ -1348,6 +1404,9 @@ class _Settings extends React.Component {
           <span>{origin}</span>
         </CurrentOriginTitle>
         <ChainCluster>
+          {this.store('chainsStatus') === 'error'
+            ? this.networkRefreshWarning(interactionLocked)
+            : null}
           {this.state.chainSwitch.status === 'pending' ||
           this.state.chainSwitch.status === 'rejected' ||
           this.state.chainSwitch.status === 'failed'
@@ -1396,6 +1455,7 @@ const disconnectFramePort = () => {
   store.setDesktopStatus('unavailable')
   store.setAuthentication({ status: 'disconnected' })
   store.setChainsStatus('idle')
+  store.setChainsError(null)
   store.setTabStatus('checking')
 }
 
@@ -1432,6 +1492,7 @@ frameConnect.onMessage.addListener((state) => {
   store.setAuthentication(authentication)
   store.setChains(state.availableChains)
   store.setChainsStatus(state.chainsStatus)
+  store.setChainsError(state.chainsError)
   store.setCurrentChain(state.currentChain)
   store.setTabStatus(state.tabStatus)
 })

@@ -602,6 +602,19 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       `document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' })`
     )
     await qualifyChromePopupLayout(settings, 'long-chain-list')
+    desktop.availableChains = {}
+    await settings.waitFor(
+      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      10_000
+    )
+    await qualifyChromePopupLayout(settings, 'network-refresh-error')
+    desktop.availableChains = availableChains
+    await settings.evaluate(
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Try again').click()`
+    )
+    await settings.waitFor(
+      `!document.body.textContent.includes('Wren could not refresh its available networks.')`
+    )
     await settings.evaluate(
       `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click()`
     )
@@ -886,6 +899,33 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       `(() => { document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' }); return true })()`
     )
     await qualifyFirefoxPopupLayout(marionette, 'long-chain-list')
+    desktop.availableChains = {}
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      'Firefox network refresh error'
+    )
+    await qualifyFirefoxPopupLayout(marionette, 'network-refresh-error')
+    desktop.availableChains = availableChains
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
+    await firefoxWaitFor(
+      marionette,
+      `!document.body.textContent.includes('Wren could not refresh its available networks.')`,
+      'Firefox network refresh recovery'
+    )
     await firefoxEvaluate(
       marionette,
       `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click(); return true })()`

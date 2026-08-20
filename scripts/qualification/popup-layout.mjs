@@ -6,6 +6,7 @@ export const POPUP_LAYOUT_STATES = [
   'connected',
   'unsupported',
   'long-chain-list',
+  'network-refresh-error',
   'identity-confirmation'
 ]
 

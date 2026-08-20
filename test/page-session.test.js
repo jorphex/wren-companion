@@ -217,7 +217,7 @@ test('marks only chain identity requests as extension connection traffic', () =>
   assert.equal(sockets[0].sent.length, 1)
 })
 
-test('confirms the page only after both provider identity requests succeed', () => {
+test('confirms the page after its first successful RPC and tracks chain identity', () => {
   const states = []
   const port = new FakePort()
   const sockets = []
@@ -249,7 +249,8 @@ test('confirms the page only after both provider identity requests succeed', () 
   sockets[0].emit('message', {
     data: JSON.stringify({ jsonrpc: '2.0', id: networkRequest.id, result: '8453' })
   })
-  assert.equal(session.pageConnectionConfirmed, false)
+  assert.equal(session.pageConnectionConfirmed, true)
+  assert.equal(session.currentChain, '')
   sockets[0].emit('message', {
     data: JSON.stringify({ jsonrpc: '2.0', id: chainRequest.id, result: '0x2105' })
   })
@@ -263,7 +264,7 @@ test('confirms the page only after both provider identity requests succeed', () 
   assert.equal(session.currentChain, '')
 })
 
-test('popup control queries do not impersonate a page-provider handshake', async () => {
+test('popup control queries make the tab ready without impersonating page activity', async () => {
   const { session, sockets } = setup()
   const result = session.requestControl('eth_chainId', [], true)
   sockets[0].open()
@@ -274,7 +275,7 @@ test('popup control queries do not impersonate a page-provider handshake', async
 
   assert.equal(await result, '0x1')
   assert.equal(session.pageConnectionConfirmed, false)
-  assert.equal(session.currentChain, '')
+  assert.equal(session.currentChain, '0x1')
 })
 
 test('returns a response only through the owning document port', () => {

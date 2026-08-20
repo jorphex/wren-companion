@@ -8,6 +8,7 @@ let popupLayout
 const root = path.join(__dirname, '..')
 const globalStyle = fs.readFileSync(path.join(root, 'src', 'style', 'index.css'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'utf8')
+const networkRefreshSource = fs.readFileSync(path.join(root, 'src', 'network-refresh.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
 const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
 
@@ -55,6 +56,7 @@ test('real-browser popup qualification covers every state at 100, 125, and 150 p
     'connected',
     'unsupported',
     'long-chain-list',
+    'network-refresh-error',
     'identity-confirmation'
   ])
 
@@ -150,12 +152,15 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
   assert.match(backgroundSource, /tabStatus: port\.frameTabStatus \|\| 'checking'/u)
   assert.match(backgroundSource, /refreshAvailableChains\(\)/u)
   assert.match(backgroundSource, /chainsStatus: 'loading'/u)
-  assert.match(backgroundSource, /chainsStatus: 'ready'/u)
-  assert.match(backgroundSource, /chainsStatus: 'error'/u)
+  assert.match(networkRefreshSource, /chainsStatus: 'ready'/u)
+  assert.match(networkRefreshSource, /chainsStatus: 'error'/u)
+  assert.match(backgroundSource, /chainsError: null/u)
+  assert.match(backgroundSource, /session\.pageConnectionConfirmed \? 'connected' : 'ready'/u)
   assert.match(settingsSource, /this\.store\('tabStatus'\) === 'checking'/u)
-  assert.match(settingsSource, /this\.store\('tabStatus'\) !== 'connected'/u)
+  assert.match(settingsSource, /\['ready', 'connected'\]\.includes\(this\.store\('tabStatus'\)\)/u)
   assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'loading'/u)
   assert.match(settingsSource, /this\.store\('chainsStatus'\) === 'error'/u)
+  assert.match(settingsSource, /this\.networkRefreshWarning\(interactionLocked\)/u)
 })
 
 test('identity reload writes the confirmed value only to the captured active document', () => {
