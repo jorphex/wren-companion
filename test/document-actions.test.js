@@ -4,10 +4,13 @@ const test = require('node:test')
 const {
   DOCUMENT_ACTION_RESULT_TYPE,
   DOCUMENT_ACTION_TYPE,
+  DOCUMENT_CAPTURE_ACTION,
   IDENTITY_STORAGE_KEY,
   RELOAD_RESPONSE_GRACE_MS,
   createDocumentActionListener
 } = require('../src/document-actions')
+
+const documentNonce = 'a'.repeat(64)
 
 function setup() {
   const events = []
@@ -82,6 +85,103 @@ test('acknowledges an exact refresh before scheduling it', () => {
     ['scheduled', RELOAD_RESPONSE_GRACE_MS],
     'reload'
   ])
+})
+
+test('binds Firefox fallback actions to the content script document nonce', () => {
+  const events = []
+  const values = new Map()
+  const listener = createDocumentActionListener({
+    runtimeId: 'extension-id',
+    storage: {
+      getItem: (key) => values.get(key),
+      setItem: (key, value) => values.set(key, value)
+    },
+    reload: () => events.push('reload'),
+    setTimer: () => {},
+    documentNonce,
+    getDocumentUrl: () => 'https://app.example/contracts'
+  })
+  const responses = []
+
+  listener(
+    { type: DOCUMENT_ACTION_TYPE, action: DOCUMENT_CAPTURE_ACTION },
+    { id: 'extension-id' },
+    (response) => responses.push(response)
+  )
+  listener(
+    {
+      type: DOCUMENT_ACTION_TYPE,
+      action: 'setIdentity',
+      value: true,
+      documentNonce: 'b'.repeat(64)
+    },
+    { id: 'extension-id' },
+    (response) => responses.push(response)
+  )
+  listener(
+    {
+      type: DOCUMENT_ACTION_TYPE,
+      action: 'setIdentity',
+      value: true,
+      documentNonce
+    },
+    { id: 'extension-id' },
+    (response) => responses.push(response)
+  )
+
+  assert.deepEqual(responses, [
+    {
+      type: DOCUMENT_ACTION_RESULT_TYPE,
+      action: DOCUMENT_CAPTURE_ACTION,
+      accepted: true,
+      documentNonce,
+      url: 'https://app.example/contracts',
+      value: undefined
+    },
+    {
+      type: DOCUMENT_ACTION_RESULT_TYPE,
+      action: 'setIdentity',
+      accepted: true,
+      documentNonce
+    }
+  ])
+  assert.equal(values.get(IDENTITY_STORAGE_KEY), 'true')
+})
+
+test('rejects nonce capture and fallback actions from all_frames subframes', () => {
+  const events = []
+  const listener = createDocumentActionListener({
+    runtimeId: 'extension-id',
+    storage: { getItem: () => undefined, setItem: () => events.push('write') },
+    reload: () => events.push('reload'),
+    setTimer: () => events.push('timer'),
+    documentNonce,
+    isTopDocument: false
+  })
+  const sendResponse = () => events.push('response')
+
+  assert.equal(
+    listener(
+      { type: DOCUMENT_ACTION_TYPE, action: DOCUMENT_CAPTURE_ACTION },
+      { id: 'extension-id' },
+      sendResponse
+    ),
+    false
+  )
+  assert.equal(
+    listener(
+      {
+        type: DOCUMENT_ACTION_TYPE,
+        action: 'setIdentity',
+        value: true,
+        documentNonce
+      },
+      { id: 'extension-id' },
+      sendResponse
+    ),
+    false
+  )
+  assert.deepEqual(events, [])
 })
 
 test('rejects foreign senders and malformed or broadened actions without side effects', () => {

@@ -75,6 +75,10 @@ function executable(candidates) {
   throw new Error(`No supported browser found: ${candidates.join(', ')}`)
 }
 
+function firefoxExecutable() {
+  return process.env.WREN_FIREFOX_BINARY || executable(['firefox'])
+}
+
 function run(command, args, environment = {}) {
   const result = spawnSync(command, args, {
     cwd: projectRoot,
@@ -1299,7 +1303,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       'user_pref("xpinstall.signatures.required", false);'
     ].join('\n')
   )
-  const firefox = executable(['firefox'])
+  const firefox = firefoxExecutable()
   const child = spawn(
     firefox,
     [
@@ -1365,6 +1369,22 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
         `${error.message}; connections=${JSON.stringify(
           [...desktop.connections].map(({ role, identity, state }) => ({ role, identity, state }))
         )}`
+      )
+    }
+    const firefoxDocumentTarget = await firefoxEvaluate(
+      marionette,
+      `document.querySelector('[data-document-target]')?.dataset.documentTarget`
+    )
+    if (process.env.WREN_FIREFOX_REQUIRE_NONCE_FALLBACK === '1') {
+      assert.equal(
+        firefoxDocumentTarget,
+        'nonce',
+        'Firefox qualification must exercise the nonce fallback when executeScript omits documentId'
+      )
+    } else {
+      assert.ok(
+        ['document-id', 'nonce'].includes(firefoxDocumentTarget),
+        'Firefox qualification captures an exact document target'
       )
     }
     await qualifyFirefoxPopupLayout(marionette, 'pairing')
@@ -1676,7 +1696,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       'user_pref("xpinstall.signatures.required", false);'
     ].join('\n')
   )
-  const firefox = executable(['firefox'])
+  const firefox = firefoxExecutable()
   const child = spawn(
     'xvfb-run',
     [

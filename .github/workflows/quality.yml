@@ -37,6 +37,16 @@ jobs:
           firefox-version: 153.0.3
       - name: Qualify isolated Chrome and Firefox extensions
         run: npm run qualify:browser
+      - name: Install Firefox 151 document-identity compatibility boundary
+        id: firefox-151
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+        with:
+          firefox-version: 151.0.4
+      - name: Qualify Firefox missing-documentId fallback
+        env:
+          WREN_FIREFOX_BINARY: ${{ steps.firefox-151.outputs.firefox-path }}
+          WREN_FIREFOX_REQUIRE_NONCE_FALLBACK: '1'
+        run: npm run qualify:browser -- --browser=firefox
       - name: Verify release package prerequisites
         run: |
           command -v zip

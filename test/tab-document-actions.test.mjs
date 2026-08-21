@@ -15,6 +15,13 @@ const capturedDocument = {
   url: 'https://app.example/contracts',
   value: false
 }
+const documentNonce = 'a'.repeat(64)
+const replacementDocumentNonce = 'b'.repeat(64)
+const capturedFirefoxDocument = {
+  documentNonce,
+  url: 'https://app.example/contracts',
+  value: false
+}
 
 const createBrowser = ({ activeUrl = capturedDocument.url } = {}) => {
   const calls = []
@@ -80,6 +87,66 @@ test('captures the top-level document and its actual URL', async () => {
   })
 })
 
+test('uses a per-document nonce handshake when Firefox omits documentId', async () => {
+  const url = 'https://app.example/contracts?tab=write'
+  const { browserApi, calls, messageResults, scriptResults } = createBrowser({ activeUrl: url })
+  scriptResults.push([{ frameId: 0, result: { value: 'true', url } }])
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'capture',
+    accepted: true,
+    documentNonce,
+    url,
+    value: 'true'
+  })
+
+  assert.deepEqual(await getLocalSetting(browserApi, { id: 7, url }, 'key'), {
+    value: true,
+    documentNonce,
+    url
+  })
+  assert.deepEqual(calls.at(-1)[1], [
+    7,
+    { type: 'wren:document-action', action: 'capture' },
+    { frameId: 0 }
+  ])
+})
+
+test('reads the fallback value atomically with its nonce instead of a stale executeScript result', async () => {
+  const url = 'https://app.example/contracts?tab=write'
+  const { browserApi, messageResults, scriptResults } = createBrowser({ activeUrl: url })
+  scriptResults.push([{ frameId: 0, result: { value: 'false', url } }])
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'capture',
+    accepted: true,
+    documentNonce,
+    url,
+    value: 'true'
+  })
+
+  assert.deepEqual(await getLocalSetting(browserApi, { id: 7, url }, 'key'), {
+    value: true,
+    documentNonce,
+    url
+  })
+})
+
+test('rejects a Firefox nonce handshake after the captured document navigates', async () => {
+  const url = 'https://app.example/contracts?tab=write'
+  const { browserApi, messageResults, scriptResults } = createBrowser({ activeUrl: url })
+  scriptResults.push([{ frameId: 0, result: { value: 'true', url } }])
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'capture',
+    accepted: true,
+    documentNonce: replacementDocumentNonce,
+    url: 'https://app.example/replaced'
+  })
+
+  assert.deepEqual(await getLocalSetting(browserApi, { id: 7, url }, 'key'), { value: false })
+})
+
 test('writes identity before issuing a separately acknowledged exact-document reload command', async () => {
   const { browserApi, calls, messageResults } = createBrowser({
     activeUrl: 'https://app.example/contracts?method=deposit#write'
@@ -118,6 +185,52 @@ test('writes identity before issuing a separately acknowledged exact-document re
     7,
     { type: 'wren:document-action', action: 'reload' },
     { documentId: 'document-1' }
+  ])
+})
+
+test('writes and reloads a Firefox document only when its nonce acknowledges both actions', async () => {
+  const { browserApi, calls, messageResults } = createBrowser()
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true,
+    documentNonce
+  })
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'reload',
+    accepted: true,
+    documentNonce
+  })
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedFirefoxDocument.url },
+      capturedFirefoxDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_CHANGED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message', 'message']
+  )
+  assert.deepEqual(calls[0][1], [
+    7,
+    {
+      type: 'wren:document-action',
+      action: 'setIdentity',
+      value: true,
+      documentNonce
+    },
+    { frameId: 0 }
+  ])
+  assert.deepEqual(calls[1][1], [
+    7,
+    { type: 'wren:document-action', action: 'reload', documentNonce },
+    { frameId: 0 }
   ])
 })
 
@@ -223,6 +336,62 @@ test('reports a saved identity when the captured tab changes before reload dispa
   assert.deepEqual(
     calls.map(([type]) => type),
     ['message']
+  )
+})
+
+test('rejects a same-origin replacement document that answers with a different nonce', async () => {
+  const { browserApi, calls, messageResults } = createBrowser()
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true,
+    documentNonce: replacementDocumentNonce
+  })
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedFirefoxDocument.url },
+      capturedFirefoxDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_FAILED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message']
+  )
+})
+
+test('does not reload a same-origin replacement after the original nonce acknowledges its write', async () => {
+  const { browserApi, calls, messageResults } = createBrowser()
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true,
+    documentNonce
+  })
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'reload',
+    accepted: true,
+    documentNonce: replacementDocumentNonce
+  })
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedFirefoxDocument.url },
+      capturedFirefoxDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_SAVED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message', 'message']
   )
 })
 

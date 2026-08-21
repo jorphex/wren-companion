@@ -4,6 +4,11 @@ const { createDocumentActionListener } = require('./document-actions')
 const BOOTSTRAP_SOURCE = 'frame:bootstrap'
 const MAX_RECONNECT_DELAY = 5000
 
+function randomDocumentNonce() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32))
+  return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('')
+}
+
 let port
 let pagePort
 let stopped = false
@@ -11,13 +16,16 @@ let suspended = false
 let reconnectDelay = 100
 let reconnectTimer
 let connectRequested = false
+const documentNonce = randomDocumentNonce()
 
 chrome.runtime.onMessage.addListener(
   createDocumentActionListener({
     runtimeId: chrome.runtime.id,
     storage: localStorage,
     reload: () => window.location.reload(),
-    setTimer: window.setTimeout.bind(window)
+    setTimer: window.setTimeout.bind(window),
+    documentNonce,
+    isTopDocument: window.top === window
   })
 )
 

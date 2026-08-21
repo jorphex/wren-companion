@@ -999,7 +999,9 @@ class _Settings extends React.Component {
   }
 
   tabNotConnected(interactionLocked) {
-    const canRefresh = Boolean(this.props.tabDocument?.documentId)
+    const canRefresh = Boolean(
+      this.props.tabDocument?.documentId || this.props.tabDocument?.documentNonce
+    )
     return this.statusNotice(
       canRefresh ? 'Refresh this tab' : 'Refresh unavailable',
       canRefresh
@@ -1437,13 +1439,18 @@ class _Settings extends React.Component {
   render() {
     const authentication = this.store('authentication') || { status: 'disconnected' }
     const isAuthenticated = authentication.status === 'authenticated'
+    const documentTarget = this.props.tabDocument?.documentId
+      ? 'document-id'
+      : this.props.tabDocument?.documentNonce
+        ? 'nonce'
+        : 'unavailable'
     const interactionLocked =
       ['confirm', 'pending'].includes(this.state.identitySwitch.status) ||
       this.state.chainSwitch.status === 'pending'
 
     return (
       <>
-        <SettingsScroll>
+        <SettingsScroll data-document-target={documentTarget}>
           <ClusterBoxMain>{this.desktopStatus(interactionLocked)}</ClusterBoxMain>
           {!isAuthenticated ? this.authenticationPanel(interactionLocked) : null}
           {this.renderMainPanel(interactionLocked)}

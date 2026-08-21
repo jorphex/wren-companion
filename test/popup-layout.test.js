@@ -191,6 +191,8 @@ test('identity reload writes the confirmed value only to the captured active doc
   assert.match(tabDocumentActionsSource, /activeTab\?\.id === tab\?\.id/u)
   assert.match(tabDocumentActionsSource, /sameOrigin\(activeTab\.url, document\.url\)/u)
   assert.match(tabDocumentActionsSource, /\{ documentId: document\.documentId \}/u)
+  assert.match(tabDocumentActionsSource, /\{ frameId: 0 \}/u)
+  assert.match(tabDocumentActionsSource, /documentNonce/u)
   assert.match(tabDocumentActionsSource, /browserApi\.tabs\.sendMessage/u)
   assert.match(injectionSource, /createDocumentActionListener/u)
   assert.match(documentActionsSource, /storage\.setItem\(IDENTITY_STORAGE_KEY, serialized\)/u)
@@ -207,6 +209,7 @@ test('identity reload writes the confirmed value only to the captured active doc
   assert.match(settingsSource, /identitySavedRef\.current\?\.focus\(\)/u)
   assert.match(settingsSource, /identityRetryRef\.current\?\.focus\(\)/u)
   assert.match(settingsSource, /identityPendingRef\.current\?\.focus\(\)/u)
+  assert.match(settingsSource, /data-document-target=\{documentTarget\}/u)
   assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)
   assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
 })
@@ -225,7 +228,7 @@ test('tab refresh runs only in the captured document and is unavailable without 
   assert.match(tabDocumentActionsSource, /sendCapturedDocumentAction/u)
   assert.match(
     settingsSource,
-    /const canRefresh = Boolean\(this\.props\.tabDocument\?\.documentId\)/u
+    /this\.props\.tabDocument\?\.documentId \|\| this\.props\.tabDocument\?\.documentNonce/u
   )
   assert.match(settingsSource, /canRefresh \? 'Refresh this tab' : 'Refresh unavailable'/u)
   assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)

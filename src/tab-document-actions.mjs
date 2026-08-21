@@ -14,6 +14,14 @@ const sameOrigin = (left, right) => {
   return Boolean(leftOrigin && leftOrigin === urlOrigin(right))
 }
 
+const sameUrl = (left, right) => {
+  try {
+    return new URL(left).href === new URL(right).href
+  } catch {
+    return false
+  }
+}
+
 export async function getActiveTab(browserApi) {
   const tabs = await browserApi.tabs.query({ active: true, currentWindow: true })
   return tabs[0]
@@ -37,8 +45,13 @@ async function executeScript(browserApi, tabId, func, args, documentId) {
 const validDocumentId = (value) =>
   typeof value === 'string' && value.length > 0 && value.length <= 256
 
+const validDocumentNonce = (value) => typeof value === 'string' && /^[a-f0-9]{64}$/iu.test(value)
+
+const hasExactDocumentTarget = (document) =>
+  validDocumentId(document?.documentId) || validDocumentNonce(document?.documentNonce)
+
 const activeTabMatches = (activeTab, tab, document) =>
-  validDocumentId(document?.documentId) &&
+  hasExactDocumentTarget(document) &&
   activeTab?.id === tab?.id &&
   isInjectedUrl(activeTab?.url) &&
   sameOrigin(activeTab.url, document.url)
@@ -47,22 +60,65 @@ export const IDENTITY_SETTING_CHANGED = 'changed'
 export const IDENTITY_SETTING_FAILED = 'failed'
 export const IDENTITY_SETTING_SAVED = 'saved'
 
+const capturedDocumentTarget = (document) =>
+  validDocumentId(document?.documentId)
+    ? { documentId: document.documentId }
+    : validDocumentNonce(document?.documentNonce)
+      ? { frameId: 0 }
+      : undefined
+
+const exactDocumentActionResponse = (response, action, document) =>
+  response?.type === 'wren:document-action-result' &&
+  response.action === action &&
+  response.accepted === true &&
+  (!validDocumentNonce(document?.documentNonce) ||
+    response.documentNonce === document.documentNonce)
+
+const captureFallbackDocument = async (browserApi, tab, expectedUrl) => {
+  try {
+    const before = await getActiveTab(browserApi)
+    if (before?.id !== tab?.id || !sameUrl(before.url, expectedUrl)) return undefined
+    const response = await browserApi.tabs.sendMessage(
+      tab.id,
+      { type: 'wren:document-action', action: 'capture' },
+      { frameId: 0 }
+    )
+    const after = await getActiveTab(browserApi)
+    if (
+      response?.type !== 'wren:document-action-result' ||
+      response.action !== 'capture' ||
+      response.accepted !== true ||
+      !validDocumentNonce(response.documentNonce) ||
+      (response.value !== null &&
+        response.value !== undefined &&
+        typeof response.value !== 'string') ||
+      !sameUrl(response.url, expectedUrl) ||
+      after?.id !== tab?.id ||
+      !sameUrl(after.url, response.url)
+    ) {
+      return undefined
+    }
+    return { documentNonce: response.documentNonce, url: response.url, value: response.value }
+  } catch {
+    return undefined
+  }
+}
+
 const sendCapturedDocumentAction = async (browserApi, tab, document, action) => {
   try {
     const activeTab = await getActiveTab(browserApi)
-    if (!activeTabMatches(activeTab, tab, document)) {
+    const target = capturedDocumentTarget(document)
+    if (!target || !activeTabMatches(activeTab, tab, document)) {
       return { accepted: false, attempted: false }
     }
-    const response = await browserApi.tabs.sendMessage(
-      tab.id,
-      { type: 'wren:document-action', ...action },
-      { documentId: document.documentId }
-    )
+    const message = {
+      type: 'wren:document-action',
+      ...action,
+      ...(validDocumentNonce(document.documentNonce) && { documentNonce: document.documentNonce })
+    }
+    const response = await browserApi.tabs.sendMessage(tab.id, message, target)
     return {
-      accepted:
-        response?.type === 'wren:document-action-result' &&
-        response.action === action.action &&
-        response.accepted === true,
+      accepted: exactDocumentActionResponse(response, action.action, document),
       attempted: true
     }
   } catch {
@@ -79,23 +135,29 @@ export async function getLocalSetting(browserApi, tab, key) {
     (storageKey) => ({ value: localStorage.getItem(storageKey), url: window.location.href }),
     [key]
   )
-  const result = results?.find((entry) => entry?.frameId === 0) || results?.[0]
-  if (
-    !validDocumentId(result?.documentId) ||
-    typeof result?.result?.url !== 'string' ||
-    !sameOrigin(result.result.url, tab.url)
-  ) {
+  const result = results?.find((entry) => entry?.frameId === 0)
+  if (typeof result?.result?.url !== 'string' || !sameOrigin(result.result.url, tab.url)) {
     return { value: false }
   }
 
+  const capturedDocument = validDocumentId(result.documentId)
+    ? { documentId: result.documentId, url: result.result.url }
+    : await captureFallbackDocument(browserApi, tab, result.result.url)
+  if (!capturedDocument) return { value: false }
+  const serialized = validDocumentId(capturedDocument.documentId)
+    ? result.result.value
+    : capturedDocument.value
+  const document = validDocumentId(capturedDocument.documentId)
+    ? capturedDocument
+    : { documentNonce: capturedDocument.documentNonce, url: capturedDocument.url }
+
   try {
     return {
-      value: JSON.parse(result.result.value || false),
-      documentId: result.documentId,
-      url: result.result.url
+      value: JSON.parse(serialized || false),
+      ...document
     }
   } catch {
-    return { value: false, documentId: result.documentId, url: result.result.url }
+    return { value: false, ...document }
   }
 }
 
