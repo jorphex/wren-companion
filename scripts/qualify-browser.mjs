@@ -1627,8 +1627,6 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       temporary: true
     })
     assert.equal(installed.value, '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}')
-    await delay(500)
-    await firefoxOpenActionPopup(marionette, installed.value)
     await waitFor(
       () => desktop.identity('firefox', 'control'),
       'Firefox packaged background control authentication',
