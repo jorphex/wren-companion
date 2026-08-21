@@ -199,7 +199,12 @@ function extensionIdentity(origin) {
 }
 
 export class MockDesktop {
-  constructor({ availableChains = [], holdAuthentication = false } = {}) {
+  constructor({
+    availableChains = [],
+    holdAuthentication = false,
+    port = 0,
+    allowProductionPort = false
+  } = {}) {
     this.connections = new Set()
     this.authentications = []
     this.requests = []
@@ -207,6 +212,8 @@ export class MockDesktop {
     this.authorizedOrigins = new Set()
     this.availableChains = availableChains
     this.holdAuthentication = holdAuthentication
+    this.portPreference = port
+    this.allowProductionPort = allowProductionPort
     this.pendingAuthentications = new Set()
     this.pairings = new Map()
     this.authenticationFrames = []
@@ -238,10 +245,10 @@ export class MockDesktop {
     this.desktopIdentity = await generateDesktopIdentity()
     await new Promise((resolve, reject) => {
       this.server.once('error', reject)
-      this.server.listen(0, '127.0.0.1', resolve)
+      this.server.listen(this.portPreference, '127.0.0.1', resolve)
     })
     this.port = this.server.address().port
-    if (this.port === 1248) {
+    if (this.port === 1248 && !this.allowProductionPort) {
       await this.close()
       throw new Error("The isolated desktop selected Wren's live port")
     }

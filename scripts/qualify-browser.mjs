@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { lstat, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
 import os from 'node:os'
@@ -51,9 +51,18 @@ const storeCaptureChains = [
 ]
 const browserArgument = process.argv.find((argument) => argument.startsWith('--browser='))
 const requestedBrowser = browserArgument?.split('=')[1] || 'all'
+const artifactMode = process.argv.includes('--artifacts')
 const defaultWaitTimeout = process.env.CI ? 45_000 : 20_000
 if (!['all', 'chrome', 'firefox'].includes(requestedBrowser)) {
   throw new Error('--browser must be all, chrome, or firefox')
+}
+
+if (artifactMode && qualificationExportDirectory) {
+  throw new Error('--artifacts cannot be combined with store-capture qualification')
+}
+
+if (artifactMode) {
+  run('npm', ['run', 'package:verify'])
 }
 
 function executable(candidates) {
@@ -121,6 +130,28 @@ class QualificationSite {
     return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${this.kind}</title>
 <script>
+const competingMetaMask = {
+  isMetaMask: true,
+  _metamask: { isUnlocked: async () => true },
+  enable: async () => ['0x000000000000000000000000000000000000dead']
+};
+if (window.ethereum) {
+  const existing = window.ethereum;
+  const providers = Array.isArray(existing.providers) ? existing.providers : [existing];
+  Object.defineProperty(existing, 'providers', {
+    value: [competingMetaMask, ...providers],
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
+} else {
+  Object.defineProperty(window, 'ethereum', {
+    value: competingMetaMask,
+    writable: true,
+    configurable: true,
+    enumerable: true
+  });
+}
 globalThis.__wren = {
   announcements: [],
   results: [],
@@ -152,6 +183,24 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
     report({ kind: '${this.kind}', type: 'error', message: error?.message || String(error) });
   }
 });
+globalThis.__wren.selectExplorerProvider = async () => {
+  const legacy = window.ethereum;
+  const legacyCandidates = Array.isArray(legacy?.providers) ? legacy.providers : [legacy];
+  const provider = globalThis.__wren.provider;
+  const incumbent = legacyCandidates.find(
+    (candidate) => candidate !== provider && candidate?.isMetaMask === true
+  );
+  if (!provider || !incumbent || typeof provider.enable !== 'function') {
+    throw new Error('No EIP-6963-selected BaseScan/Etherscan-compatible Wren provider is available');
+  }
+  return {
+    selectedAnnouncement: provider === globalThis.__wren.provider,
+    selectedLegacyProvider: legacyCandidates.includes(provider),
+    competingMetaMaskWouldWinGenericSelection:
+      legacyCandidates.find((candidate) => candidate?.isMetaMask === true) === incumbent,
+    accounts: await provider.enable()
+  };
+};
 window.addEventListener('message', async (event) => {
   if (event.data !== 'wren:chain') return;
   const chainId = await globalThis.__wren.provider.request({ method: 'eth_chainId' });
@@ -219,6 +268,29 @@ async function buildExtension(directory, desktopPort, browser) {
   assert.doesNotMatch(manifest, /127\.0\.0\.1:1248/u)
   assert.match(index, /wren-companion-auth-v3/u)
   assert.doesNotMatch(index, /frame-extension-auth-v2/u)
+}
+
+async function extractPackagedExtension(directory, browser) {
+  const packageJson = JSON.parse(await readFile(path.join(projectRoot, 'package.json'), 'utf8'))
+  const archive = path.join(
+    projectRoot,
+    'artifacts',
+    `wren-companion-${packageJson.version}-${browser}.zip`
+  )
+  try {
+    await access(archive)
+  } catch {
+    throw new Error(
+      `Missing packaged ${browser} artifact: ${archive}; run npm run package:browsers first`
+    )
+  }
+  run('unzip', ['-q', archive, '-d', directory])
+
+  const index = await readFile(path.join(directory, 'index.js'), 'utf8')
+  const manifest = await readFile(path.join(directory, 'manifest.json'), 'utf8')
+  assert.match(index, /127\.0\.0\.1:1248/u)
+  assert.match(manifest, /127\.0\.0\.1:1248/u)
+  assert.match(index, /wren-companion-auth-v3/u)
 }
 
 function assertProtocol3Authentication(desktop, browser, fingerprint) {
@@ -425,6 +497,67 @@ async function firefoxChromeEvaluate(marionette, script, args = []) {
   } finally {
     await marionette.request('Marionette:SetContext', { value: 'content' })
   }
+}
+
+async function firefoxOpenActionPopup(marionette, extensionId, panelRequested = false) {
+  const result = await firefoxChromeEvaluate(
+    marionette,
+    `
+      const window = Services.wm.getMostRecentWindow('navigator:browser');
+      const extensionId = arguments[0];
+      const panelRequested = arguments[1];
+      const idToken = extensionId.replace(/[^A-Za-z0-9_-]/g, '');
+      if (!panelRequested) {
+        window.focus();
+        window.gUnifiedExtensions.openPanel(null, 'extension_browser_action_popup');
+        return { opened: false, panelRequested: true };
+      }
+      const widgetId = 'webext-' + idToken + '-browser-action';
+      const widget = CustomizableUI.getWidget(widgetId)?.forWindow(window);
+      const toolbarButton = widget?.node?.querySelector('.unified-extensions-item-action-button');
+      if (toolbarButton) {
+        const rect = toolbarButton.getBoundingClientRect();
+        window.focus();
+        window.windowUtils.sendMouseEvent('mousedown', rect.x + rect.width / 2, rect.y + rect.height / 2, 0, 1, 0, true, 0, 0);
+        window.windowUtils.sendMouseEvent('mouseup', rect.x + rect.width / 2, rect.y + rect.height / 2, 0, 1, 0, true, 0, 0);
+        return { opened: true, id: toolbarButton.id, widgetId };
+      }
+      const candidates = [...window.document.querySelectorAll('[data-extensionid], [id$="-browser-action"]')];
+      let action = candidates.find(
+        (element) => element.getAttribute('data-extensionid') === extensionId
+      );
+      action ||= candidates.find((element) => element.id.includes(idToken));
+      if (!action) {
+        return {
+          opened: false,
+          unifiedExtensionsMethods:
+            typeof window.gUnifiedExtensions === 'object'
+              ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.gUnifiedExtensions))
+              : [],
+          candidates: [...window.document.querySelectorAll('[id]')]
+            .filter((element) => /(?:extension|action|webext)/iu.test(element.id))
+            .slice(0, 80)
+            .map((element) => ({
+              id: element.id,
+              extensionId: element.getAttribute('data-extensionid')
+            }))
+        };
+      }
+      action.click();
+      return { opened: true, id: action.id };
+    `,
+    [extensionId, panelRequested]
+  )
+  if (result?.panelRequested) {
+    await delay(300)
+    return firefoxOpenActionPopup(marionette, extensionId, true)
+  }
+  if (!result?.opened) {
+    throw new Error(
+      `Firefox artifact qualification cannot open the packaged action popup: ${JSON.stringify(result)}`
+    )
+  }
+  await delay(300)
 }
 
 async function firefoxReloadExtensionInBackground(marionette, url) {
@@ -642,7 +775,11 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     )
     assert.deepEqual(await page.evaluate(`globalThis.__wren.accountChanges`), [])
     const requestCountBeforeLegacyEnable = desktop.requests.length
-    const enabledAccounts = await page.evaluate(`globalThis.__wren.provider.enable()`)
+    const explorerSelection = await page.evaluate(`globalThis.__wren.selectExplorerProvider()`)
+    assert.equal(explorerSelection.selectedAnnouncement, true)
+    assert.equal(explorerSelection.selectedLegacyProvider, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await page.waitFor(`globalThis.__wren.accountChanges.length === 1`)
     assert.deepEqual(await page.evaluate(`globalThis.__wren.accountChanges`), [enabledAccounts])
@@ -651,7 +788,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
         .slice(requestCountBeforeLegacyEnable)
         .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
       true,
-      'Chrome legacy wallet selection requests account access'
+      'Chrome BaseScan/Etherscan-compatible wallet selection requests account access'
     )
 
     const authenticatedExtensionId = desktop.authentications.find(
@@ -681,9 +818,14 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       await settings.evaluate(`document.body.textContent.includes('Refresh this tab')`),
       false
     )
-    const controlAuthenticationsBeforeRestart = desktop.authentications.filter(
+    const controlAuthenticationsBeforeInitialCatalogFailure = desktop.authentications.filter(
       ({ role, browser }) => role === 'control' && browser === 'chrome'
     ).length
+    await cdp.send(
+      'Runtime.evaluate',
+      { expression: 'chrome.storage.local.clear()', awaitPromise: true },
+      workerTarget.sessionId
+    )
     desktop.availableChains = {}
     await settings.close()
     await cdp.send('ServiceWorker.enable', {}, page.sessionId)
@@ -692,14 +834,51 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       () =>
         desktop.authentications.filter(
           ({ role, browser }) => role === 'control' && browser === 'chrome'
-        ).length > controlAuthenticationsBeforeRestart,
-      'Companion service-worker restart'
+        ).length > controlAuthenticationsBeforeInitialCatalogFailure,
+      'Companion initial-catalog service-worker restart'
     )
     await cdp.send('Page.reload', {}, page.sessionId)
     await page.waitFor(`document.readyState === 'complete'`)
     const restartedWorker = await chromeExtensionWorker(cdp, desktop)
     workerTarget = await cdp.send('Target.attachToTarget', {
       targetId: restartedWorker.targetId,
+      flatten: true
+    })
+    await cdp.send('Target.activateTarget', { targetId: page.targetId })
+    settings = await openChromePopup(
+      cdp,
+      workerTarget.sessionId,
+      extensionId,
+      'initial catalog failure'
+    )
+    await settings.waitFor(
+      `document.body.textContent.includes('Networks unavailable') && document.querySelectorAll('[data-chain-id]').length === 0`,
+      15_000
+    )
+    desktop.availableChains = availableChains
+    await settings.evaluate(
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Refresh networks').click()`
+    )
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await settings.close()
+
+    const controlAuthenticationsBeforeCachedCatalogFailure = desktop.authentications.filter(
+      ({ role, browser }) => role === 'control' && browser === 'chrome'
+    ).length
+    desktop.availableChains = {}
+    await cdp.send('ServiceWorker.stopAllWorkers', {}, page.sessionId)
+    await waitFor(
+      () =>
+        desktop.authentications.filter(
+          ({ role, browser }) => role === 'control' && browser === 'chrome'
+        ).length > controlAuthenticationsBeforeCachedCatalogFailure,
+      'Companion cached-catalog service-worker restart'
+    )
+    await cdp.send('Page.reload', {}, page.sessionId)
+    await page.waitFor(`document.readyState === 'complete'`)
+    const cachedWorker = await chromeExtensionWorker(cdp, desktop)
+    workerTarget = await cdp.send('Target.attachToTarget', {
+      targetId: cachedWorker.targetId,
       flatten: true
     })
     await cdp.send('Target.activateTarget', { targetId: page.targetId })
@@ -716,6 +895,61 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     )
     await settings.waitFor(
       `!document.body.textContent.includes('Wren could not refresh its available networks.')`
+    )
+    desktop.availableChains = []
+    await cdp.send(
+      'Runtime.evaluate',
+      { expression: `chrome.alarms.create('check-client-status', { when: Date.now() + 50 })` },
+      workerTarget.sessionId
+    )
+    await settings.waitFor(
+      `document.body.textContent.includes('No networks available') && document.querySelectorAll('[data-chain-id]').length === 0`
+    )
+    desktop.availableChains = availableChains
+    await cdp.send(
+      'Runtime.evaluate',
+      { expression: `chrome.alarms.create('check-client-status', { when: Date.now() + 50 })` },
+      workerTarget.sessionId
+    )
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await settings.evaluate(
+      `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click()`
+    )
+    await settings.waitFor(`document.querySelector('[role="alertdialog"]')`)
+    const capturedDocumentToken = await page.evaluate(`globalThis.__wren.loadToken`)
+    await cdp.send(
+      'Page.navigate',
+      { url: `${top.origin}/?idle=1&replacement-document=1` },
+      page.sessionId
+    )
+    await page.waitFor(
+      `document.readyState === 'complete' && globalThis.__wren?.loadToken !== ${JSON.stringify(capturedDocumentToken)}`
+    )
+    const replacementToken = await page.evaluate(`globalThis.__wren.loadToken`)
+    await settings.evaluate(
+      `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click()`
+    )
+    await settings.waitFor(`document.body.textContent.includes('Wallet unchanged')`)
+    assert.equal(
+      await page.evaluate(`JSON.parse(localStorage.getItem('__frameAppearAsMM__') || 'false')`),
+      false,
+      'Chrome document replacement does not write identity to the replacement document'
+    )
+    assert.equal(
+      await page.evaluate(`globalThis.__wren.loadToken`),
+      replacementToken,
+      'Chrome document replacement does not reload the replacement document'
+    )
+    await settings.close()
+    await cdp.send('Target.activateTarget', { targetId: page.targetId })
+    settings = await openChromePopup(
+      cdp,
+      workerTarget.sessionId,
+      extensionId,
+      'replacement rejected'
+    )
+    await settings.waitFor(
+      `[...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`
     )
     await settings.evaluate(
       `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click()`
@@ -1057,10 +1291,14 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       []
     )
     const requestCountBeforeLegacyEnable = desktop.requests.length
-    const enabledAccounts = await firefoxEvaluate(
+    const explorerSelection = await firefoxEvaluate(
       marionette,
-      `(window.wrappedJSObject || window).__wren.provider.enable()`
+      `(window.wrappedJSObject || window).__wren.selectExplorerProvider()`
     )
+    assert.equal(explorerSelection.selectedAnnouncement, true)
+    assert.equal(explorerSelection.selectedLegacyProvider, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await firefoxWaitFor(
       marionette,
@@ -1076,7 +1314,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
         .slice(requestCountBeforeLegacyEnable)
         .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
       true,
-      'Firefox legacy wallet selection requests account access'
+      'Firefox BaseScan/Etherscan-compatible wallet selection requests account access'
     )
     await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     await firefoxWaitFor(
@@ -1296,26 +1534,146 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
   }
 }
 
+async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) {
+  const profile = path.join(root, 'firefox-profile')
+  await mkdir(profile, { recursive: true })
+  const marionettePort = await availablePort()
+  await writeFile(
+    path.join(profile, 'user.js'),
+    [
+      'user_pref("browser.shell.checkDefaultBrowser", false);',
+      'user_pref("datareporting.policy.dataSubmissionEnabled", false);',
+      'user_pref("extensions.autoDisableScopes", 0);',
+      'user_pref("extensions.enabledScopes", 15);',
+      'user_pref("extensions.update.enabled", false);',
+      `user_pref("marionette.port", ${marionettePort});`,
+      'user_pref("xpinstall.signatures.required", false);'
+    ].join('\n')
+  )
+  const firefox = executable(['firefox'])
+  const child = spawn(
+    'xvfb-run',
+    [
+      '-a',
+      firefox,
+      '--marionette',
+      '-remote-allow-system-access',
+      '--no-remote',
+      '--profile',
+      profile,
+      'about:blank'
+    ],
+    {
+      env: {
+        ...process.env,
+        MOZ_CRASHREPORTER_DISABLE: '1',
+        MOZ_DISABLE_AUTO_SAFE_MODE: '1'
+      },
+      stdio: ['ignore', 'ignore', 'pipe']
+    }
+  )
+  let stderr = ''
+  child.stderr.on('data', (chunk) => {
+    stderr += chunk
+  })
+  let marionette
+  try {
+    marionette = await new MarionetteClient(marionettePort).open()
+    const installed = await marionette.request('Addon:Install', {
+      path: extension,
+      temporary: true
+    })
+    assert.equal(installed.value, '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}')
+    await delay(500)
+    await firefoxOpenActionPopup(marionette, installed.value)
+    await waitFor(
+      () => desktop.identity('firefox', 'control'),
+      'Firefox packaged action-popup control pairing',
+      30_000
+    )
+    await marionette.request('WebDriver:Navigate', { url: `${top.origin}/` })
+    await waitFor(
+      () =>
+        top.reports.some(({ type }) => type === 'ready') &&
+        frame.reports.some(({ type }) => type === 'ready'),
+      'Firefox packaged top-frame provider reports',
+      30_000
+    )
+    const identity = desktop.identity('firefox', 'page')
+    assert.ok(identity)
+    assertProtocol3Authentication(desktop, 'firefox')
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren?.provider`,
+      'Firefox packaged Wren provider'
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(
+        marionette,
+        `(window.wrappedJSObject || window).__wren.provider.request({ method: 'eth_accounts' })`
+      ),
+      []
+    )
+    const requestCountBeforeLegacyEnable = desktop.requests.length
+    const explorerSelection = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.selectExplorerProvider()`
+    )
+    assert.equal(explorerSelection.selectedAnnouncement, true)
+    assert.equal(explorerSelection.selectedLegacyProvider, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    assert.deepEqual(explorerSelection.accounts, ['0x0000000000000000000000000000000000000001'])
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.accountChanges.length === 1`,
+      'Firefox packaged account grant event'
+    )
+    assert.equal(
+      desktop.requests
+        .slice(requestCountBeforeLegacyEnable)
+        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
+      true,
+      'Firefox packaged BaseScan/Etherscan-compatible selection requests account access'
+    )
+    console.log(
+      'firefox artifact qualification: packaged action-popup pairing and provider/auth/legacy core passed'
+    )
+  } catch (error) {
+    throw new Error(`${error.message}\nFirefox packaged-core diagnostics:\n${stderr.slice(-4000)}`)
+  } finally {
+    await marionette?.close()
+    await stopBrowser(child)
+  }
+}
+
 async function qualify(browser) {
   assert.equal(QUALIFICATION_AUTH_VERSION, 3, 'Browser qualification must use protocol 3')
   const root = await mkdtemp(path.join(os.tmpdir(), `wren-companion-${browser}-`))
   const extension = path.join(root, 'extension')
-  const desktop = new MockDesktop({ availableChains, holdAuthentication: true })
+  const desktop = new MockDesktop({
+    availableChains,
+    holdAuthentication: !artifactMode || browser === 'chrome',
+    ...(artifactMode ? { port: 1248, allowProductionPort: true } : {})
+  })
   const top = new QualificationSite('top')
   const frame = new QualificationSite('frame')
   try {
     await desktop.listen()
+    if (artifactMode)
+      assert.equal(desktop.port, 1248, 'Artifact mode must use production port 1248')
     await top.listen()
     await frame.listen()
     top.frameOrigin = frame.origin
     frame.frameOrigin = frame.origin
     desktop.setChainId(top.origin, '0x1')
     desktop.setChainId(frame.origin, '0x2')
-    await buildExtension(extension, desktop.port, browser)
+    if (artifactMode) await extractPackagedExtension(extension, browser)
+    else await buildExtension(extension, desktop.port, browser)
     if (browser === 'chrome') await qualifyChrome(root, extension, desktop, top, frame)
+    else if (artifactMode) await qualifyFirefoxPackagedCore(root, extension, desktop, top, frame)
     else await qualifyFirefox(root, extension, desktop, top, frame)
     console.log(
-      `${browser}: qualified EIP-6963, protocol 3, isolated origins, and popup states at 100/125/150% in a disposable profile on port ${desktop.port}`
+      `${browser}: qualified ${artifactMode ? 'packaged ' : ''}EIP-6963, protocol 3, isolated origins, and ${artifactMode && browser === 'firefox' ? 'provider/auth core' : 'popup states at 100/125/150%'} in a disposable profile on port ${desktop.port}`
     )
   } finally {
     await Promise.allSettled([desktop.close(), top.close(), frame.close()])

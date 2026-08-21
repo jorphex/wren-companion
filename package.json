@@ -25,6 +25,7 @@
     "package:verify": "npm run sbom:verify && node scripts/verify-packages.mjs",
     "qualify:serve": "node scripts/serve-qualification.mjs",
     "qualify:browser": "node scripts/qualify-browser.mjs",
+    "qualify:artifacts": "node scripts/qualify-browser.mjs --artifacts",
     "sbom:artifact": "node scripts/generate-sbom.mjs",
     "sbom:verify": "node scripts/verify-sbom.mjs",
     "build": "npm run brand:verify && rimraf ./dist && webpack --config webpack.config.js && node ./src/copy-static.js",
