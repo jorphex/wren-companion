@@ -204,6 +204,7 @@ export class MockDesktop {
     this.authentications = []
     this.requests = []
     this.chainIds = new Map()
+    this.authorizedOrigins = new Set()
     this.availableChains = availableChains
     this.holdAuthentication = holdAuthentication
     this.pendingAuthentications = new Set()
@@ -272,7 +273,7 @@ export class MockDesktop {
         'Connection: Upgrade\r\n' +
         `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
     )
-    const connection = { role, identity, state: 'hello' }
+    const connection = { role, identity, state: 'hello', subscriptions: new Map() }
     const peer = new WebSocketPeer(
       socket,
       (text) => this.message(connection, text),
@@ -536,18 +537,52 @@ export class MockDesktop {
         return connection.peer.close(1008)
       }
     }
+    const sendResult = (result) => connection.peer.send({ jsonrpc: '2.0', id: request.id, result })
     let result
     if (request.method === 'wallet_getEthereumChains') result = this.availableChains
     else if (request.method === 'web3_clientVersion') result = 'Wren/qualification'
     else if (request.method === 'net_version') result = '1'
     else if (request.method === 'eth_chainId') {
       result = this.chainIds.get(request.__frameOrigin) || '0x1'
-    } else if (request.method === 'eth_accounts' || request.method === 'eth_requestAccounts') {
+    } else if (request.method === 'eth_accounts') {
+      result = this.authorizedOrigins.has(request.__frameOrigin)
+        ? ['0x0000000000000000000000000000000000000001']
+        : []
+    } else if (request.method === 'eth_requestAccounts') {
       result = ['0x0000000000000000000000000000000000000001']
-    } else if (request.method === 'eth_subscribe') result = `sub-${this.requests.length}`
-    else if (request.method === 'eth_unsubscribe') result = true
-    else result = null
-    connection.peer.send({ jsonrpc: '2.0', id: request.id, result })
+      this.authorizedOrigins.add(request.__frameOrigin)
+      if (connection.identity.browser === 'chrome') {
+        this.sendAccountNotifications(request.__frameOrigin, result)
+      }
+      sendResult(result)
+      if (connection.identity.browser === 'firefox') {
+        this.sendAccountNotifications(request.__frameOrigin, result)
+      }
+      return
+    } else if (request.method === 'eth_subscribe') {
+      result = `sub-${this.requests.length}`
+      connection.subscriptions.set(result, {
+        event: request.params?.[0],
+        origin: request.__frameOrigin
+      })
+    } else if (request.method === 'eth_unsubscribe') {
+      result = connection.subscriptions.delete(request.params?.[0])
+    } else result = null
+    sendResult(result)
+  }
+
+  sendAccountNotifications(origin, accounts) {
+    for (const connection of this.connections) {
+      if (connection.role !== 'page' || connection.state !== 'authenticated') continue
+      for (const [subscription, entry] of connection.subscriptions) {
+        if (entry.event !== 'accountsChanged' || entry.origin !== origin) continue
+        connection.peer.send({
+          jsonrpc: '2.0',
+          method: 'eth_subscription',
+          params: { subscription, result: accounts }
+        })
+      }
+    }
   }
 
   closePageConnections() {

@@ -70,6 +70,7 @@ export default [
       'src/authentication-actions.js',
       'src/authenticated-socket.js',
       'src/credential-store.js',
+      'src/document-actions.js',
       'src/frame.js',
       'src/index.js',
       'src/inject.js',

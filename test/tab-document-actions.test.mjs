@@ -15,10 +15,17 @@ const capturedDocument = {
 
 const createBrowser = ({ activeUrl = capturedDocument.url } = {}) => {
   const calls = []
+  const messageResults = []
   const scriptResults = []
   const browserApi = {
     tabs: {
-      query: async () => [{ id: 7, url: activeUrl }]
+      query: async () => [{ id: 7, url: activeUrl }],
+      sendMessage: async (...args) => {
+        calls.push(['message', args])
+        const result = messageResults.shift()
+        if (result instanceof Error) throw result
+        return result
+      }
     },
     scripting: {
       executeScript: async (options) => {
@@ -27,7 +34,13 @@ const createBrowser = ({ activeUrl = capturedDocument.url } = {}) => {
       }
     }
   }
-  return { browserApi, calls, scriptResults, setActiveUrl: (url) => (activeUrl = url) }
+  return {
+    browserApi,
+    calls,
+    messageResults,
+    scriptResults,
+    setActiveUrl: (url) => (activeUrl = url)
+  }
 }
 
 test('captures the top-level document and its actual URL', async () => {
@@ -52,31 +65,35 @@ test('captures the top-level document and its actual URL', async () => {
   })
 })
 
-test('acknowledges the write before reloading across a same-document route change', async () => {
-  const { browserApi, calls, scriptResults } = createBrowser({
+test('writes identity through an acknowledged exact-document reload command', async () => {
+  const { browserApi, calls, messageResults } = createBrowser({
     activeUrl: 'https://app.example/contracts?method=deposit#write'
   })
-  scriptResults.push([{ frameId: 0, documentId: 'document-1', result: true }])
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true
+  })
 
   assert.equal(
     await setLocalSetting(
       browserApi,
       { id: 7, url: capturedDocument.url },
       capturedDocument,
-      'identity',
+      '__frameAppearAsMM__',
       true
     ),
     true
   )
   assert.deepEqual(
     calls.map(([type]) => type),
-    ['script']
+    ['message']
   )
-  assert.deepEqual(calls[0][1].target, { tabId: 7, documentIds: ['document-1'] })
-  assert.match(
-    calls[0][1].func.toString(),
-    /setTimeout\(\(\) => window\.location\.reload\(\), 0\)/u
-  )
+  assert.deepEqual(calls[0][1], [
+    7,
+    { type: 'wren:document-action', action: 'setIdentity', value: true },
+    { documentId: 'document-1' }
+  ])
 })
 
 test('refuses a replaced document and a cross-origin active tab', async () => {
@@ -87,25 +104,25 @@ test('refuses a replaced document and a cross-origin active tab', async () => {
         browserApi,
         { id: 7, url: capturedDocument.url },
         capturedDocument,
-        'identity',
+        '__frameAppearAsMM__',
         true
       ),
       false
     )
     assert.equal(
-      calls.some(([type]) => type === 'script'),
+      calls.some(([type]) => type === 'message'),
       false
     )
   }
 
-  const { browserApi, calls, scriptResults } = createBrowser()
-  scriptResults.push([{ frameId: 0, documentId: 'document-2', result: true }])
+  const { browserApi, calls, messageResults } = createBrowser()
+  messageResults.push(new Error('The captured document was replaced'))
   assert.equal(
     await setLocalSetting(
       browserApi,
       { id: 7, url: capturedDocument.url },
       capturedDocument,
-      'identity',
+      '__frameAppearAsMM__',
       true
     ),
     false
@@ -113,32 +130,29 @@ test('refuses a replaced document and a cross-origin active tab', async () => {
   assert.equal(calls.length, 1)
 })
 
-test('refreshes only after proving the captured document is still active', async () => {
-  const { browserApi, calls, scriptResults } = createBrowser({
+test('refreshes only after the captured document acknowledges the command', async () => {
+  const { browserApi, calls, messageResults } = createBrowser({
     activeUrl: 'https://app.example/contracts#same-document'
   })
-  scriptResults.push([
-    {
-      frameId: 0,
-      documentId: 'document-1',
-      result: true
-    }
-  ])
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'reload',
+    accepted: true
+  })
 
   assert.equal(
     await reloadCapturedTab(browserApi, { id: 7, url: capturedDocument.url }, capturedDocument),
     true
   )
-  assert.deepEqual(calls.at(-1)[1].target, { tabId: 7, documentIds: ['document-1'] })
-  assert.match(
-    calls.at(-1)[1].func.toString(),
-    /setTimeout\(\(\) => window\.location\.reload\(\), 0\)/u
-  )
+  assert.deepEqual(calls.at(-1)[1], [
+    7,
+    { type: 'wren:document-action', action: 'reload' },
+    { documentId: 'document-1' }
+  ])
 })
 
-test('never reloads a replacement document through a tab-level API', async () => {
-  const { browserApi, calls, scriptResults, setActiveUrl } = createBrowser()
-  scriptResults.push([])
+test('never messages a replacement document through a frame-level target', async () => {
+  const { browserApi, calls, setActiveUrl } = createBrowser()
   setActiveUrl('https://other.example/replaced')
 
   assert.equal(
@@ -146,7 +160,7 @@ test('never reloads a replacement document through a tab-level API', async () =>
     false
   )
   assert.equal(
-    calls.some(([type]) => type === 'reload'),
+    calls.some(([type]) => type === 'message'),
     false
   )
 })

@@ -130,9 +130,7 @@ class FrameProvider extends EventEmitter {
       if (payload.error) return pending.reject(providerError(payload.error))
 
       if (pending.method === 'eth_accounts' || pending.method === 'eth_requestAccounts') {
-        this.accounts = Array.isArray(payload.result) ? payload.result : []
-        this.selectedAddress = this.accounts[0]
-        this.coinbase = this.accounts[0]
+        if (this.updateAccounts(payload.result)) this.emit('accountsChanged', this.accounts)
       } else if (pending.method === 'eth_chainId' && typeof payload.result === 'string') {
         this.providerChainId = payload.result
       } else if (pending.method === 'net_version') {
@@ -147,19 +145,29 @@ class FrameProvider extends EventEmitter {
     const event = this.subscriptions.get(payload.params.subscription)
     const result = payload.params.result
     if (event) {
+      let changed = true
       if (event === 'accountsChanged') {
-        this.accounts = Array.isArray(result) ? result : []
-        this.selectedAddress = this.accounts[0]
-        this.coinbase = this.accounts[0]
+        changed = this.updateAccounts(result)
       } else if (event === 'chainChanged') {
         this.providerChainId = result
       } else if (event === 'networkChanged') {
         this.networkVersion = result
       }
-      if (event !== 'chainChanged' || !this.manualChainId) this.emit(event, result)
+      if (changed && (event !== 'chainChanged' || !this.manualChainId)) this.emit(event, result)
     }
     this.emit('message', { type: 'eth_subscription', data: payload.params })
     this.emit('data', payload)
+  }
+
+  updateAccounts(value) {
+    const accounts = Array.isArray(value) ? value : []
+    const changed =
+      accounts.length !== this.accounts.length ||
+      accounts.some((account, index) => account !== this.accounts[index])
+    this.accounts = accounts
+    this.selectedAddress = accounts[0]
+    this.coinbase = accounts[0]
+    return changed
   }
 
   async handleConnect() {
@@ -230,7 +238,7 @@ class FrameProvider extends EventEmitter {
   }
 
   async enable() {
-    const accounts = await this.doSend('eth_accounts')
+    const accounts = await this.doSend('eth_requestAccounts')
     if (Array.isArray(accounts) && accounts.length) {
       this.emit('enable')
       return accounts

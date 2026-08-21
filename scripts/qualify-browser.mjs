@@ -121,7 +121,12 @@ class QualificationSite {
     return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${this.kind}</title>
 <script>
-globalThis.__wren = { announcements: [], results: [] };
+globalThis.__wren = {
+  announcements: [],
+  results: [],
+  accountChanges: [],
+  loadToken: Math.random().toString(36).slice(2) + Date.now()
+};
 function report(value) {
   globalThis.__wren.results.push(value);
   fetch('/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(value) });
@@ -130,6 +135,11 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
   if (event.detail?.info?.rdns !== 'io.github.jorphex.wren') return;
   const info = event.detail.info;
   globalThis.__wren.announcements.push({ name: info.name, rdns: info.rdns, uuid: info.uuid });
+  if (globalThis.__wren.provider !== event.detail.provider) {
+    event.detail.provider.on('accountsChanged', (accounts) => {
+      globalThis.__wren.accountChanges.push(accounts);
+    });
+  }
   globalThis.__wren.provider = event.detail.provider;
   if (!${JSON.stringify(activateProvider)}) {
     report({ kind: '${this.kind}', type: 'announced', info: { name: info.name, rdns: info.rdns } });
@@ -619,6 +629,30 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       `globalThis.__wren.provider.request({ method: 'eth_chainId' })`
     )
     assert.equal(chainId, '0x1')
+    await waitFor(
+      () =>
+        desktop.requests.some(
+          ({ method, origin }) => method === 'eth_subscribe' && origin === top.origin
+        ),
+      'Chrome account subscription'
+    )
+    assert.deepEqual(
+      await page.evaluate(`globalThis.__wren.provider.request({ method: 'eth_accounts' })`),
+      []
+    )
+    assert.deepEqual(await page.evaluate(`globalThis.__wren.accountChanges`), [])
+    const requestCountBeforeLegacyEnable = desktop.requests.length
+    const enabledAccounts = await page.evaluate(`globalThis.__wren.provider.enable()`)
+    assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
+    await page.waitFor(`globalThis.__wren.accountChanges.length === 1`)
+    assert.deepEqual(await page.evaluate(`globalThis.__wren.accountChanges`), [enabledAccounts])
+    assert.equal(
+      desktop.requests
+        .slice(requestCountBeforeLegacyEnable)
+        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
+      true,
+      'Chrome legacy wallet selection requests account access'
+    )
 
     const authenticatedExtensionId = desktop.authentications.find(
       ({ role, browser }) => role === 'control' && browser === 'chrome'
@@ -696,11 +730,12 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       true,
       'Chrome identity switch survives a same-document route change'
     )
+    const chromeWrenDocument = await page.evaluate(`globalThis.__wren.loadToken`)
     await settings.evaluate(
       `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click()`
     )
     await page.waitFor(
-      `document.readyState === 'complete' && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      `document.readyState === 'complete' && globalThis.__wren?.loadToken !== ${JSON.stringify(chromeWrenDocument)} && globalThis.__wren?.provider?.isWren !== true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       30_000
     )
     await cdp.send('Target.activateTarget', { targetId: page.targetId })
@@ -708,6 +743,30 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await settings.waitFor(
       `document.body.textContent.includes('Injecting as MetaMask') && !document.body.textContent.includes('Refresh this tab')`
     )
+    if (!qualificationExportDirectory) {
+      const chromeMetaMaskDocument = await page.evaluate(`globalThis.__wren.loadToken`)
+      await settings.evaluate(
+        `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'Wren').click()`
+      )
+      await settings.waitFor(`document.querySelector('[role="alertdialog"]')`)
+      await settings.evaluate(
+        `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to Wren').click()`
+      )
+      await page.waitFor(
+        `document.readyState === 'complete' && globalThis.__wren?.loadToken !== ${JSON.stringify(chromeMetaMaskDocument)} && globalThis.__wren?.provider?.isWren === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
+        30_000
+      )
+      await cdp.send('Target.activateTarget', { targetId: page.targetId })
+      settings = await openChromePopup(
+        cdp,
+        workerTarget.sessionId,
+        extensionId,
+        'restored identity'
+      )
+      await settings.waitFor(
+        `document.body.textContent.includes('Injecting as Wren') && !document.body.textContent.includes('Refresh this tab')`
+      )
+    }
     if (qualificationExportDirectory) {
       await settings.close()
       desktop.availableChains = storeCaptureChains
@@ -914,8 +973,8 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     })
     assert.equal(installed.value, '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}')
     await marionette.request('WebDriver:Navigate', { url: `${top.origin}/` })
-    const initialHandles = await marionette.request('WebDriver:GetWindowHandles')
-    const topHandle = (initialHandles.value || initialHandles)[0]
+    const currentHandle = await marionette.request('WebDriver:GetWindowHandle')
+    const topHandle = currentHandle.value || currentHandle
     await waitFor(() => desktop.identity('firefox'), 'Firefox Companion identity', 30_000)
     const extensionId = desktop.identity('firefox').extensionId
     const popupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
@@ -973,6 +1032,53 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     assertProtocol3Authentication(desktop, 'firefox', firefoxFingerprint)
     assert.equal(top.reports.find(({ type }) => type === 'ready')?.chainId, '0x1')
     assert.equal(frame.reports.find(({ type }) => type === 'ready')?.chainId, '0x2')
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren?.provider`,
+      'Firefox top-level Wren provider'
+    )
+    await waitFor(
+      () =>
+        desktop.requests.some(
+          ({ method, origin }) => method === 'eth_subscribe' && origin === top.origin
+        ),
+      'Firefox account subscription'
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(
+        marionette,
+        `(window.wrappedJSObject || window).__wren.provider.request({ method: 'eth_accounts' })`
+      ),
+      []
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.accountChanges`),
+      []
+    )
+    const requestCountBeforeLegacyEnable = desktop.requests.length
+    const enabledAccounts = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.provider.enable()`
+    )
+    assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.accountChanges.length === 1`,
+      'Firefox account grant event'
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.accountChanges`),
+      [enabledAccounts]
+    )
+    assert.equal(
+      desktop.requests
+        .slice(requestCountBeforeLegacyEnable)
+        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
+      true,
+      'Firefox legacy wallet selection requests account access'
+    )
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     await firefoxWaitFor(
       marionette,
       `document.body.textContent.includes('Reset pairing') && document.querySelectorAll('[data-chain-id]').length === 18`,
@@ -1057,6 +1163,10 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       true,
       'Firefox identity switch survives a same-document route change'
     )
+    const firefoxWrenDocument = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.loadToken`
+    )
     await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     const selectedDappBehindPopup = await firefoxChromeEvaluate(
       marionette,
@@ -1084,12 +1194,16 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
     await firefoxWaitFor(
       marionette,
-      `document.readyState === 'complete' && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren !== true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       'Firefox identity switch reload'
+    )
+    const firefoxMetaMaskDocument = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.loadToken`
     )
 
     const recoveryPopupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
-    const recoveryPopupHandle = recoveryPopupWindow.value?.handle || recoveryPopupWindow.handle
+    let recoveryPopupHandle = recoveryPopupWindow.value?.handle || recoveryPopupWindow.handle
     await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
     await firefoxNavigateExtension(marionette, `moz-extension://${extensionId}/settings.html`)
     await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
@@ -1103,6 +1217,59 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       marionette,
       `document.body.textContent.includes('Injecting as MetaMask') && !document.body.textContent.includes('Refresh this tab')`,
       'Firefox switched identity popup'
+    )
+    await firefoxEvaluate(
+      marionette,
+      `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'Wren').click(); return true })()`
+    )
+    await firefoxWaitFor(
+      marionette,
+      `document.querySelector('[role="alertdialog"]')`,
+      'Firefox Wren identity confirmation'
+    )
+    const selectedDappForWrenRestore = await firefoxChromeEvaluate(
+      marionette,
+      `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        const browser = [...window.gBrowser.browsers].find(
+          (candidate) => candidate.currentURI.spec.startsWith(arguments[0])
+        );
+        if (!browser) return false;
+        window.gBrowser.selectedTab = window.gBrowser.getTabForBrowser(browser);
+        return true;
+      `,
+      [top.origin]
+    )
+    assert.equal(
+      selectedDappForWrenRestore,
+      true,
+      'Firefox dapp tab remains active for Wren restore'
+    )
+    await firefoxEvaluate(
+      marionette,
+      `(() => { [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to Wren').click(); return true })()`
+    )
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
+      'Firefox Wren identity restore reload'
+    )
+    const restoredPopupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
+    recoveryPopupHandle = restoredPopupWindow.value?.handle || restoredPopupWindow.handle
+    await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
+    await firefoxNavigateExtension(marionette, `moz-extension://${extensionId}/settings.html`)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    await firefoxReloadExtensionInBackground(
+      marionette,
+      `moz-extension://${extensionId}/settings.html`
+    )
+    await delay(800)
+    await marionette.request('WebDriver:SwitchToWindow', { handle: recoveryPopupHandle })
+    await firefoxWaitFor(
+      marionette,
+      `document.body.textContent.includes('Injecting as Wren') && !document.body.textContent.includes('Refresh this tab')`,
+      'Firefox restored identity popup'
     )
 
     const unsupportedWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })

@@ -130,6 +130,63 @@ test('updates account state and supports legacy callback requests', async () => 
   assert.deepEqual(await callback, { id: 99, jsonrpc: '2.0', result: '0x1' })
 })
 
+test('legacy enable requests account access instead of silently reading existing accounts', async () => {
+  const { connection, provider } = await setupConnected()
+  const changes = []
+  provider.on('accountsChanged', (accounts) => changes.push(accounts))
+  const enabled = provider.enable()
+  const request = connection.sent.at(-1)
+
+  assert.equal(request.method, 'eth_requestAccounts')
+  connection.respond(request, ['0x1234'])
+  assert.deepEqual(await enabled, ['0x1234'])
+  assert.deepEqual(provider.accounts, ['0x1234'])
+  assert.deepEqual(changes, [['0x1234']])
+})
+
+test('emits account changes from direct grants once and suppresses duplicate subscription state', async () => {
+  const { connection, provider } = await setupConnected()
+  const changes = []
+  provider.on('accountsChanged', (accounts) => changes.push(accounts))
+  await new Promise((resolve) => queueMicrotask(resolve))
+  const subscription = connection.sent.find(({ method }) => method === 'eth_subscribe')
+  connection.respond(subscription, 'accounts-subscription')
+  await new Promise((resolve) => queueMicrotask(resolve))
+
+  const granted = provider.request({ method: 'eth_requestAccounts' })
+  connection.respond(connection.sent.at(-1), ['0x1234'])
+  assert.deepEqual(await granted, ['0x1234'])
+  connection.emit('payload', {
+    jsonrpc: '2.0',
+    method: 'eth_subscription',
+    params: { subscription: 'accounts-subscription', result: ['0x1234'] }
+  })
+
+  assert.deepEqual(changes, [['0x1234']])
+})
+
+test('emits a subscription grant once when it arrives before the request response', async () => {
+  const { connection, provider } = await setupConnected()
+  const changes = []
+  provider.on('accountsChanged', (accounts) => changes.push(accounts))
+  await new Promise((resolve) => queueMicrotask(resolve))
+  const subscription = connection.sent.find(({ method }) => method === 'eth_subscribe')
+  connection.respond(subscription, 'accounts-subscription')
+  await new Promise((resolve) => queueMicrotask(resolve))
+
+  const granted = provider.request({ method: 'eth_requestAccounts' })
+  const request = connection.sent.at(-1)
+  connection.emit('payload', {
+    jsonrpc: '2.0',
+    method: 'eth_subscription',
+    params: { subscription: 'accounts-subscription', result: ['0x1234'] }
+  })
+  connection.respond(request, ['0x1234'])
+
+  assert.deepEqual(await granted, ['0x1234'])
+  assert.deepEqual(changes, [['0x1234']])
+})
+
 test('subscribes only for observed events and emits standard subscription messages', async () => {
   const connection = new FakeConnection()
   const provider = new FrameProvider(connection)

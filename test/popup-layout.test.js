@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..')
 const globalStyle = fs.readFileSync(path.join(root, 'src', 'style', 'index.css'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'utf8')
 const injectionSource = fs.readFileSync(path.join(root, 'src', 'inject.js'), 'utf8')
+const documentActionsSource = fs.readFileSync(path.join(root, 'src', 'document-actions.js'), 'utf8')
 const networkRefreshSource = fs.readFileSync(path.join(root, 'src', 'network-refresh.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
 const tabDocumentActionsSource = fs.readFileSync(
@@ -182,9 +183,11 @@ test('identity reload writes the confirmed value only to the captured active doc
   assert.match(settingsSource, /setLocalSetting\(\n\s*chrome,\n\s*this\.props\.tab,/u)
   assert.match(tabDocumentActionsSource, /activeTab\?\.id === tab\?\.id/u)
   assert.match(tabDocumentActionsSource, /sameOrigin\(activeTab\.url, document\.url\)/u)
-  assert.match(tabDocumentActionsSource, /documentIds: \[documentId\]/u)
-  assert.match(tabDocumentActionsSource, /localStorage\.setItem\(storageKey, serialized\)/u)
-  assert.match(tabDocumentActionsSource, /setTimeout\(\(\) => window\.location\.reload\(\), 0\)/u)
+  assert.match(tabDocumentActionsSource, /\{ documentId: document\.documentId \}/u)
+  assert.match(tabDocumentActionsSource, /browserApi\.tabs\.sendMessage/u)
+  assert.match(injectionSource, /createDocumentActionListener/u)
+  assert.match(documentActionsSource, /storage\.setItem\(IDENTITY_STORAGE_KEY, serialized\)/u)
+  assert.match(documentActionsSource, /sendResponse\([\s\S]*setTimer\(reload, 0\)/u)
   assert.match(settingsSource, /if \(changed\) window\.close\(\)/u)
   assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)
   assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
@@ -192,8 +195,8 @@ test('identity reload writes the confirmed value only to the captured active doc
 
 test('tab refresh runs only in the captured document and is unavailable without its identity', () => {
   assert.match(tabDocumentActionsSource, /export async function reloadCapturedTab/u)
-  assert.match(tabDocumentActionsSource, /documentIds: \[documentId\]/u)
-  assert.match(tabDocumentActionsSource, /runCapturedDocumentAction/u)
+  assert.match(tabDocumentActionsSource, /\{ documentId: document\.documentId \}/u)
+  assert.match(tabDocumentActionsSource, /sendCapturedDocumentAction/u)
   assert.match(
     settingsSource,
     /const canRefresh = Boolean\(this\.props\.tabDocument\?\.documentId\)/u

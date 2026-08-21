@@ -1,4 +1,5 @@
 const { errorResponse, parseDesktopMessage, parsePageRequest } = require('./protocol')
+const { createDocumentActionListener } = require('./document-actions')
 
 const BOOTSTRAP_SOURCE = 'frame:bootstrap'
 const MAX_RECONNECT_DELAY = 5000
@@ -10,6 +11,15 @@ let suspended = false
 let reconnectDelay = 100
 let reconnectTimer
 let connectRequested = false
+
+chrome.runtime.onMessage.addListener(
+  createDocumentActionListener({
+    runtimeId: chrome.runtime.id,
+    storage: localStorage,
+    reload: () => window.location.reload(),
+    setTimer: window.setTimeout.bind(window)
+  })
+)
 
 function randomChannelId() {
   const bytes = crypto.getRandomValues(new Uint8Array(32))

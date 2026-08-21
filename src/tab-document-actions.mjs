@@ -37,14 +37,31 @@ async function executeScript(browserApi, tabId, func, args, documentId) {
 const validDocumentId = (value) =>
   typeof value === 'string' && value.length > 0 && value.length <= 256
 
-const capturedResult = (results, documentId) =>
-  results?.find((result) => result?.documentId === documentId)
-
 const activeTabMatches = (activeTab, tab, document) =>
   validDocumentId(document?.documentId) &&
   activeTab?.id === tab?.id &&
   isInjectedUrl(activeTab?.url) &&
   sameOrigin(activeTab.url, document.url)
+
+const sendCapturedDocumentAction = async (browserApi, tab, document, action) => {
+  const activeTab = await getActiveTab(browserApi)
+  if (!activeTabMatches(activeTab, tab, document)) return false
+
+  try {
+    const response = await browserApi.tabs.sendMessage(
+      tab.id,
+      { type: 'wren:document-action', ...action },
+      { documentId: document.documentId }
+    )
+    return (
+      response?.type === 'wren:document-action-result' &&
+      response.action === action.action &&
+      response.accepted === true
+    )
+  } catch {
+    return false
+  }
+}
 
 export async function getLocalSetting(browserApi, tab, key) {
   if (!Number.isInteger(tab?.id) || !isInjectedUrl(tab?.url)) return { value: false }
@@ -75,34 +92,14 @@ export async function getLocalSetting(browserApi, tab, key) {
   }
 }
 
-async function runCapturedDocumentAction(browserApi, tab, document, func, args = []) {
-  const activeTab = await getActiveTab(browserApi)
-  if (!activeTabMatches(activeTab, tab, document)) return false
-
-  const results = await executeScript(browserApi, tab.id, func, args, document.documentId)
-  const result = capturedResult(results, document.documentId)
-  return result?.result === true
-}
-
 export async function setLocalSetting(browserApi, tab, document, key, value) {
-  return runCapturedDocumentAction(
-    browserApi,
-    tab,
-    document,
-    (storageKey, nextValue) => {
-      const serialized = JSON.stringify(nextValue)
-      localStorage.setItem(storageKey, serialized)
-      if (localStorage.getItem(storageKey) !== serialized) return false
-      setTimeout(() => window.location.reload(), 0)
-      return true
-    },
-    [key, value]
-  )
+  if (key !== '__frameAppearAsMM__' || typeof value !== 'boolean') return false
+  return sendCapturedDocumentAction(browserApi, tab, document, {
+    action: 'setIdentity',
+    value
+  })
 }
 
 export async function reloadCapturedTab(browserApi, tab, document) {
-  return runCapturedDocumentAction(browserApi, tab, document, () => {
-    setTimeout(() => window.location.reload(), 0)
-    return true
-  })
+  return sendCapturedDocumentAction(browserApi, tab, document, { action: 'reload' })
 }
