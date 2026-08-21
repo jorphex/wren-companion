@@ -562,86 +562,110 @@ async function firefoxOpenActionPopup(marionette, extensionId) {
   }
 }
 
-class BidiClient {
-  async open(url) {
-    assert.match(url || '', /^ws:\/\//u, 'Firefox must expose a WebDriver BiDi endpoint')
-    this.nextId = 0
-    this.pending = new Map()
-    this.socket = new WebSocket(url)
-    this.socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data)
-      if (!Number.isSafeInteger(message.id)) return
-      const pending = this.pending.get(message.id)
-      if (!pending) return
-      this.pending.delete(message.id)
-      if (message.type === 'success') pending.resolve(message.result)
-      else pending.reject(new Error(`${message.error || 'BiDi error'}: ${message.message || ''}`))
-    })
-    this.socket.addEventListener('close', () => {
-      for (const pending of this.pending.values()) {
-        pending.reject(new Error('Firefox WebDriver BiDi connection closed'))
-      }
-      this.pending.clear()
-    })
-    await new Promise((resolve, reject) => {
-      this.socket.addEventListener('open', resolve, { once: true })
-      this.socket.addEventListener('error', reject, { once: true })
-    })
-    return this
-  }
-
-  request(method, params = {}) {
-    const id = ++this.nextId
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-      this.socket.send(JSON.stringify({ id, method, params }))
-    })
-  }
-
-  close() {
-    this.socket?.close()
-  }
-}
-
-const bidiRemoteValue = (remote) => {
-  if (!remote || remote.type === 'undefined') return undefined
-  if (remote.type === 'null') return null
-  if (remote.type === 'array') return remote.value.map(bidiRemoteValue)
-  if (remote.type === 'object') {
-    return Object.fromEntries(remote.value.map(([key, value]) => [key, bidiRemoteValue(value)]))
-  }
-  return remote.value
-}
-
-const flattenContexts = (contexts) =>
-  contexts.flatMap((context) => [context, ...flattenContexts(context.children || [])])
-
-async function firefoxActionPopupEvaluate(bidi, expression) {
-  const tree = await bidi.request('browsingContext.getTree', {})
-  const context = flattenContexts(tree.contexts).find(
-    ({ url }) => url.startsWith('moz-extension://') && url.endsWith('/settings.html')
-  )
-  if (!context) return false
-  const evaluated = await bidi.request('script.evaluate', {
-    expression,
-    target: { context: context.context },
-    awaitPromise: true,
-    userActivation: true
-  })
-  if (evaluated.type !== 'success') {
-    throw new Error(`Firefox action popup evaluation failed: ${evaluated.exceptionDetails?.text}`)
-  }
-  return bidiRemoteValue(evaluated.result)
-}
-
-async function firefoxWaitForActionPopup(bidi, expression, label) {
+async function firefoxActionPopupEvaluate(marionette, extensionId, expression) {
+  // Every caller supplies a literal qualification expression from this file.
+  await marionette.request('Marionette:SetContext', { value: 'chrome' })
   try {
-    await waitFor(() => firefoxActionPopupEvaluate(bidi, `Boolean(${expression})`), label, 15_000)
+    const result = await marionette.request('WebDriver:ExecuteAsyncScript', {
+      script: `
+        const done = arguments[arguments.length - 1];
+        const extensionId = arguments[0];
+        const expression = arguments[1];
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        const idToken = extensionId.replace(/[^A-Za-z0-9_-]/g, '');
+        const view = [...window.document.querySelectorAll('panelview[extension]')].find(
+          (candidate) => candidate.id.includes(idToken)
+        );
+        const browser = view?.querySelector('browser');
+        if (!browser?.messageManager) return done({ unavailable: true });
+
+        const messageManager = browser.messageManager;
+        const token = Services.uuid.generateUUID().toString();
+        const ready = token + ':ready';
+        const request = token + ':request';
+        const reply = token + ':reply';
+        let settled = false;
+        let requested = false;
+        let timeout;
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          messageManager.removeMessageListener(ready, onReady);
+          messageManager.removeMessageListener(reply, onReply);
+          done(value);
+        };
+        const onReply = (message) => finish(message.data);
+        const onReady = () => {
+          if (requested || settled) return;
+          requested = true;
+          messageManager.addMessageListener(reply, onReply);
+          messageManager.sendAsyncMessage(request, { expression });
+        };
+        timeout = setTimeout(() => finish({ error: 'Timed out waiting for Firefox action popup' }), 5_000);
+        messageManager.addMessageListener(ready, onReady);
+        try {
+          const frameScript = [
+            'addMessageListener(' + JSON.stringify(request) + ', async function handler(message) {' +
+              'removeMessageListener(' + JSON.stringify(request) + ', handler);' +
+              'try {' +
+                'const sandbox = new Cu.Sandbox(content, {' +
+                  'sandboxName: "Wren Companion qualification",' +
+                  'sandboxPrototype: content,' +
+                  'wantXrays: false' +
+                '});' +
+                'let value = Cu.evalInSandbox(message.data.expression, sandbox);' +
+                'if (value && typeof value.then === "function") value = await value;' +
+                'sendAsyncMessage(' + JSON.stringify(reply) + ', { ok: true, value });' +
+              '} catch (error) {' +
+                'sendAsyncMessage(' + JSON.stringify(reply) + ', {' +
+                  'error: String(error),' +
+                  'stack: error.stack || ""' +
+                '});' +
+              '}' +
+            '});' +
+            'sendAsyncMessage(' + JSON.stringify(ready) + ', {});'
+          ].join('');
+          messageManager.loadFrameScript(
+            'data:application/javascript,' + encodeURIComponent(frameScript),
+            false
+          );
+        } catch (error) {
+          finish({ error: String(error) });
+        }
+      `,
+      args: [extensionId, expression],
+      newSandbox: false,
+      sandbox: 'system'
+    })
+    const value = result.value === undefined ? result : result.value
+    if (value?.unavailable) return false
+    if (value?.error) {
+      throw new Error(
+        `Firefox action popup evaluation failed: ${value.error}${
+          value.stack ? `\n${value.stack}` : ''
+        }`
+      )
+    }
+    return value?.value
+  } finally {
+    await marionette.request('Marionette:SetContext', { value: 'content' }).catch(() => {})
+  }
+}
+
+async function firefoxWaitForActionPopup(marionette, extensionId, expression, label) {
+  try {
+    await waitFor(
+      () => firefoxActionPopupEvaluate(marionette, extensionId, `Boolean(${expression})`),
+      label,
+      15_000
+    )
   } catch (error) {
     const diagnostics = await firefoxActionPopupEvaluate(
-      bidi,
+      marionette,
+      extensionId,
       `({ documentUrl: document.URL, readyState: document.readyState, text: document.body?.textContent?.slice(0, 500) })`
-    )
+    ).catch((diagnosticError) => ({ error: diagnosticError.message }))
     throw new Error(`${error.message}: ${JSON.stringify(diagnostics)}`)
   }
 }
@@ -1659,8 +1683,6 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       '-a',
       firefox,
       '--marionette',
-      '--remote-debugging-port',
-      '0',
       '-remote-allow-system-access',
       '--no-remote',
       '--profile',
@@ -1681,10 +1703,8 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     stderr += chunk
   })
   let marionette
-  let bidi
   try {
     marionette = await new MarionetteClient(marionettePort).open()
-    bidi = await new BidiClient().open(marionette.capabilities?.webSocketUrl)
     const installed = await marionette.request('Addon:Install', {
       path: extension,
       temporary: true
@@ -1745,7 +1765,8 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     )
     await firefoxOpenActionPopup(marionette, installed.value)
     await firefoxWaitForActionPopup(
-      bidi,
+      marionette,
+      installed.value,
       `[...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`,
       'Firefox packaged action-popup identity controls'
     )
@@ -1755,16 +1776,19 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       'Firefox packaged dapp tab remains active behind the action popup'
     )
     await firefoxActionPopupEvaluate(
-      bidi,
+      marionette,
+      installed.value,
       `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click(); return true })()`
     )
     await firefoxWaitForActionPopup(
-      bidi,
+      marionette,
+      installed.value,
       `document.querySelector('[role="alertdialog"]')`,
       'Firefox packaged action-popup identity confirmation'
     )
     await firefoxActionPopupEvaluate(
-      bidi,
+      marionette,
+      installed.value,
       `(() => { [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click(); return true })()`
     )
     await firefoxWaitFor(
@@ -1778,7 +1802,8 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     )
     await firefoxOpenActionPopup(marionette, installed.value)
     await firefoxWaitForActionPopup(
-      bidi,
+      marionette,
+      installed.value,
       `[...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'Wren')`,
       'Firefox packaged action-popup Wren identity control'
     )
@@ -1788,16 +1813,19 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       'Firefox packaged dapp tab remains active for Wren restoration'
     )
     await firefoxActionPopupEvaluate(
-      bidi,
+      marionette,
+      installed.value,
       `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'Wren').click(); return true })()`
     )
     await firefoxWaitForActionPopup(
-      bidi,
+      marionette,
+      installed.value,
       `document.querySelector('[role="alertdialog"]')`,
       'Firefox packaged action-popup Wren confirmation'
     )
     await firefoxActionPopupEvaluate(
-      bidi,
+      marionette,
+      installed.value,
       `(() => { [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to Wren').click(); return true })()`
     )
     await firefoxWaitFor(
@@ -1811,7 +1839,6 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
   } catch (error) {
     throw new Error(`${error.message}\nFirefox packaged-core diagnostics:\n${stderr.slice(-4000)}`)
   } finally {
-    bidi?.close()
     await marionette?.close()
     await stopBrowser(child)
   }
