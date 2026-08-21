@@ -5,6 +5,7 @@ const {
   DOCUMENT_ACTION_RESULT_TYPE,
   DOCUMENT_ACTION_TYPE,
   IDENTITY_STORAGE_KEY,
+  RELOAD_RESPONSE_GRACE_MS,
   createDocumentActionListener
 } = require('../src/document-actions')
 
@@ -18,13 +19,16 @@ function setup() {
       setItem: (key, value) => values.set(key, value)
     },
     reload: () => events.push('reload'),
-    setTimer: (callback) => callback()
+    setTimer: (callback, delay) => {
+      events.push(['scheduled', delay])
+      callback()
+    }
   })
   const sendResponse = (response) => events.push(['response', response])
   return { events, listener, sendResponse, values }
 }
 
-test('acknowledges an exact identity write before scheduling its reload', () => {
+test('acknowledges an exact identity write without reloading its receiver', () => {
   const { events, listener, sendResponse, values } = setup()
 
   assert.equal(
@@ -37,8 +41,36 @@ test('acknowledges an exact identity write before scheduling its reload', () => 
   )
   assert.equal(values.get(IDENTITY_STORAGE_KEY), 'true')
   assert.deepEqual(events, [
+    ['response', { type: DOCUMENT_ACTION_RESULT_TYPE, action: 'setIdentity', accepted: true }]
+  ])
+})
+
+test('does not destroy an identity acknowledgement when response delivery is destructive', () => {
+  const events = []
+  const values = new Map()
+  const listener = createDocumentActionListener({
+    runtimeId: 'extension-id',
+    storage: {
+      getItem: (key) => values.get(key),
+      setItem: (key, value) => values.set(key, value)
+    },
+    reload: () => events.push('reload'),
+    setTimer: (callback) => callback()
+  })
+
+  listener(
+    { type: DOCUMENT_ACTION_TYPE, action: 'setIdentity', value: true },
+    { id: 'extension-id' },
+    (response) => {
+      events.push(['response', response])
+      events.push('receiver-destroyed')
+    }
+  )
+
+  assert.equal(values.get(IDENTITY_STORAGE_KEY), 'true')
+  assert.deepEqual(events, [
     ['response', { type: DOCUMENT_ACTION_RESULT_TYPE, action: 'setIdentity', accepted: true }],
-    'reload'
+    'receiver-destroyed'
   ])
 })
 
@@ -47,6 +79,7 @@ test('acknowledges an exact refresh before scheduling it', () => {
   listener({ type: DOCUMENT_ACTION_TYPE, action: 'reload' }, { id: 'extension-id' }, sendResponse)
   assert.deepEqual(events, [
     ['response', { type: DOCUMENT_ACTION_RESULT_TYPE, action: 'reload', accepted: true }],
+    ['scheduled', RELOAD_RESPONSE_GRACE_MS],
     'reload'
   ])
 })

@@ -16,7 +16,7 @@ test('installs Wren only when no legacy provider exists', () => {
   })
 })
 
-test('joins an existing configurable provider without replacing it', () => {
+test('makes Wren the primary legacy provider while retaining a configurable incumbent', () => {
   const existing = { isOtherWallet: true }
   const provider = { isFrame: true }
   const target = {}
@@ -27,22 +27,22 @@ test('joins an existing configurable provider without replacing it', () => {
   })
 
   assert.equal(installLegacyProvider(target, provider), true)
-  assert.equal(target.ethereum, existing)
-  assert.deepEqual(existing.providers, [existing, provider])
+  assert.equal(target.ethereum, provider)
+  assert.deepEqual(provider.providers, [provider, existing])
 })
 
-test('joins an inherited provider without shadowing it', () => {
+test('makes Wren primary over an inherited provider while retaining it', () => {
   const existing = { isOtherWallet: true }
   const provider = { isFrame: true }
   const target = Object.create({ ethereum: existing })
 
   assert.equal(installLegacyProvider(target, provider), true)
-  assert.equal(target.ethereum, existing)
-  assert.equal(Object.hasOwn(target, 'ethereum'), false)
-  assert.deepEqual(existing.providers, [existing, provider])
+  assert.equal(target.ethereum, provider)
+  assert.equal(Object.hasOwn(target, 'ethereum'), true)
+  assert.deepEqual(provider.providers, [provider, existing])
 })
 
-test('appends to a multi-provider legacy list without duplicating Wren', () => {
+test('keeps Wren deterministically first in a multi-provider legacy list', () => {
   const first = { isOtherWallet: true }
   const second = { isAnotherWallet: true }
   const provider = { isFrame: true }
@@ -50,14 +50,52 @@ test('appends to a multi-provider legacy list without duplicating Wren', () => {
 
   assert.equal(installLegacyProvider(target, provider), true)
   assert.equal(installLegacyProvider(target, provider), true)
-  assert.deepEqual(target.ethereum.providers, [first, second, provider])
+  assert.equal(target.ethereum, provider)
+  assert.deepEqual(provider.providers, [provider, first, second])
 })
 
-test('leaves a sealed incumbent provider untouched', () => {
+test('replaces a writable non-configurable incumbent without changing its descriptor policy', () => {
+  const existing = { isOtherWallet: true }
+  const provider = { isFrame: true }
+  const target = {}
+  Object.defineProperty(target, 'ethereum', {
+    value: existing,
+    writable: true,
+    configurable: false,
+    enumerable: false
+  })
+
+  assert.equal(installLegacyProvider(target, provider), true)
+  assert.equal(target.ethereum, provider)
+  assert.deepEqual(provider.providers, [provider, existing])
+  assert.deepEqual(Object.getOwnPropertyDescriptor(target, 'ethereum'), {
+    value: provider,
+    writable: true,
+    configurable: false,
+    enumerable: false
+  })
+})
+
+test('retains a sealed incumbent as a secondary provider without mutating it', () => {
   const existing = Object.freeze({ isOtherWallet: true })
+  const provider = { isFrame: true }
   const target = { ethereum: existing }
+
+  assert.equal(installLegacyProvider(target, provider), true)
+  assert.equal(target.ethereum, provider)
+  assert.deepEqual(provider.providers, [provider, existing])
+  assert.equal(existing.providers, undefined)
+})
+
+test('leaves a non-writable legacy global untouched', () => {
+  const existing = { isOtherWallet: true }
+  const target = {}
+  Object.defineProperty(target, 'ethereum', {
+    value: existing,
+    writable: false,
+    configurable: false
+  })
 
   assert.equal(installLegacyProvider(target, { isFrame: true }), false)
   assert.equal(target.ethereum, existing)
-  assert.equal(existing.providers, undefined)
 })

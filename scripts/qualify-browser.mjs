@@ -193,12 +193,15 @@ globalThis.__wren.selectExplorerProvider = async () => {
   if (!provider || !incumbent || typeof provider.enable !== 'function') {
     throw new Error('No EIP-6963-selected BaseScan/Etherscan-compatible Wren provider is available');
   }
+  if (legacy !== provider || typeof legacy.enable !== 'function') {
+    throw new Error('The selected Wren provider is not the deterministic legacy provider');
+  }
   return {
     selectedAnnouncement: provider === globalThis.__wren.provider,
-    selectedLegacyProvider: legacyCandidates.includes(provider),
+    selectedLegacyProvider: legacy === provider && legacyCandidates.includes(provider),
     competingMetaMaskWouldWinGenericSelection:
       legacyCandidates.find((candidate) => candidate?.isMetaMask === true) === incumbent,
-    accounts: await provider.enable()
+    accounts: await legacy.enable()
   };
 };
 window.addEventListener('message', async (event) => {
@@ -544,6 +547,47 @@ async function firefoxOpenActionPopup(marionette, extensionId) {
   )
 }
 
+async function firefoxActionPopupEvaluate(marionette, extensionId, expression) {
+  return firefoxChromeEvaluate(
+    marionette,
+    `
+      const window = Services.wm.getMostRecentWindow('navigator:browser');
+      const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
+      const view = [...window.document.querySelectorAll('panelview[extension]')].find(
+        (candidate) => candidate.id.includes(idToken)
+      );
+      const document = view?.querySelector('browser')?.contentDocument;
+      if (!document) return false;
+      return Function('document', 'return (' + arguments[1] + ')')(document);
+    `,
+    [extensionId, expression]
+  )
+}
+
+async function firefoxWaitForActionPopup(marionette, extensionId, expression, label) {
+  await waitFor(
+    () => firefoxActionPopupEvaluate(marionette, extensionId, `Boolean(${expression})`),
+    label,
+    15_000
+  )
+}
+
+async function selectFirefoxDappBehindPopup(marionette, origin) {
+  return firefoxChromeEvaluate(
+    marionette,
+    `
+      const window = Services.wm.getMostRecentWindow('navigator:browser');
+      const browser = [...window.gBrowser.browsers].find(
+        (candidate) => candidate.currentURI.spec.startsWith(arguments[0])
+      );
+      if (!browser) return false;
+      window.gBrowser.selectedTab = window.gBrowser.getTabForBrowser(browser);
+      return true;
+    `,
+    [origin]
+  )
+}
+
 async function firefoxReloadExtensionInBackground(marionette, url) {
   const loaded = await firefoxChromeEvaluate(
     marionette,
@@ -762,7 +806,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     const explorerSelection = await page.evaluate(`globalThis.__wren.selectExplorerProvider()`)
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
-    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
     const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await page.waitFor(`globalThis.__wren.accountChanges.length === 1`)
@@ -1281,7 +1325,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     )
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
-    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
     const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await firefoxWaitFor(
@@ -1605,7 +1649,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     )
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
-    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, true)
+    assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
     assert.deepEqual(explorerSelection.accounts, ['0x0000000000000000000000000000000000000001'])
     await firefoxWaitFor(
       marionette,
@@ -1619,8 +1663,82 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       true,
       'Firefox packaged BaseScan/Etherscan-compatible selection requests account access'
     )
+    const firefoxWrenDocument = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.loadToken`
+    )
+    await firefoxOpenActionPopup(marionette, installed.value)
+    await firefoxWaitForActionPopup(
+      marionette,
+      installed.value,
+      `[...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`,
+      'Firefox packaged action-popup identity controls'
+    )
+    assert.equal(
+      await selectFirefoxDappBehindPopup(marionette, top.origin),
+      true,
+      'Firefox packaged dapp tab remains active behind the action popup'
+    )
+    await firefoxActionPopupEvaluate(
+      marionette,
+      installed.value,
+      `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click(); return true })()`
+    )
+    await firefoxWaitForActionPopup(
+      marionette,
+      installed.value,
+      `document.querySelector('[role="alertdialog"]')`,
+      'Firefox packaged action-popup identity confirmation'
+    )
+    await firefoxActionPopupEvaluate(
+      marionette,
+      installed.value,
+      `(() => { [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click(); return true })()`
+    )
+    await firefoxWaitFor(
+      marionette,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      'Firefox packaged action-popup MetaMask identity reload'
+    )
+    const firefoxMetaMaskDocument = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.loadToken`
+    )
+    await firefoxOpenActionPopup(marionette, installed.value)
+    await firefoxWaitForActionPopup(
+      marionette,
+      installed.value,
+      `[...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'Wren')`,
+      'Firefox packaged action-popup Wren identity control'
+    )
+    assert.equal(
+      await selectFirefoxDappBehindPopup(marionette, top.origin),
+      true,
+      'Firefox packaged dapp tab remains active for Wren restoration'
+    )
+    await firefoxActionPopupEvaluate(
+      marionette,
+      installed.value,
+      `(() => { [...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'Wren').click(); return true })()`
+    )
+    await firefoxWaitForActionPopup(
+      marionette,
+      installed.value,
+      `document.querySelector('[role="alertdialog"]')`,
+      'Firefox packaged action-popup Wren confirmation'
+    )
+    await firefoxActionPopupEvaluate(
+      marionette,
+      installed.value,
+      `(() => { [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to Wren').click(); return true })()`
+    )
+    await firefoxWaitFor(
+      marionette,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
+      'Firefox packaged action-popup Wren identity reload'
+    )
     console.log(
-      'firefox artifact qualification: packaged toolbar action panel, background control/page authentication, and provider/legacy core passed'
+      'firefox artifact qualification: packaged action-popup identity controls, background control/page authentication, and provider/legacy core passed'
     )
   } catch (error) {
     throw new Error(`${error.message}\nFirefox packaged-core diagnostics:\n${stderr.slice(-4000)}`)

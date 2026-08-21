@@ -1,6 +1,7 @@
 const DOCUMENT_ACTION_TYPE = 'wren:document-action'
 const DOCUMENT_ACTION_RESULT_TYPE = 'wren:document-action-result'
 const IDENTITY_STORAGE_KEY = '__frameAppearAsMM__'
+const RELOAD_RESPONSE_GRACE_MS = 100
 
 const exactKeys = (value, keys) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
@@ -44,7 +45,10 @@ function createDocumentActionListener({ runtimeId, storage, reload, setTimer }) 
     } catch {
       return false
     }
-    setTimer(reload, 0)
+    // Identity writes never reload their receiver. A separate reload command
+    // acknowledges that scheduling succeeded, then gives the browser time to
+    // deliver that response before replacing the document.
+    if (message.action === 'reload') setTimer(reload, RELOAD_RESPONSE_GRACE_MS)
     return false
   }
 }
@@ -53,5 +57,6 @@ module.exports = {
   DOCUMENT_ACTION_RESULT_TYPE,
   DOCUMENT_ACTION_TYPE,
   IDENTITY_STORAGE_KEY,
+  RELOAD_RESPONSE_GRACE_MS,
   createDocumentActionListener
 }

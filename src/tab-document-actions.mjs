@@ -43,23 +43,30 @@ const activeTabMatches = (activeTab, tab, document) =>
   isInjectedUrl(activeTab?.url) &&
   sameOrigin(activeTab.url, document.url)
 
-const sendCapturedDocumentAction = async (browserApi, tab, document, action) => {
-  const activeTab = await getActiveTab(browserApi)
-  if (!activeTabMatches(activeTab, tab, document)) return false
+export const IDENTITY_SETTING_CHANGED = 'changed'
+export const IDENTITY_SETTING_FAILED = 'failed'
+export const IDENTITY_SETTING_SAVED = 'saved'
 
+const sendCapturedDocumentAction = async (browserApi, tab, document, action) => {
   try {
+    const activeTab = await getActiveTab(browserApi)
+    if (!activeTabMatches(activeTab, tab, document)) {
+      return { accepted: false, attempted: false }
+    }
     const response = await browserApi.tabs.sendMessage(
       tab.id,
       { type: 'wren:document-action', ...action },
       { documentId: document.documentId }
     )
-    return (
-      response?.type === 'wren:document-action-result' &&
-      response.action === action.action &&
-      response.accepted === true
-    )
+    return {
+      accepted:
+        response?.type === 'wren:document-action-result' &&
+        response.action === action.action &&
+        response.accepted === true,
+      attempted: true
+    }
   } catch {
-    return false
+    return { accepted: false, attempted: true }
   }
 }
 
@@ -93,13 +100,24 @@ export async function getLocalSetting(browserApi, tab, key) {
 }
 
 export async function setLocalSetting(browserApi, tab, document, key, value) {
-  if (key !== '__frameAppearAsMM__' || typeof value !== 'boolean') return false
-  return sendCapturedDocumentAction(browserApi, tab, document, {
+  if (key !== '__frameAppearAsMM__' || typeof value !== 'boolean') {
+    return IDENTITY_SETTING_FAILED
+  }
+  const written = await sendCapturedDocumentAction(browserApi, tab, document, {
     action: 'setIdentity',
     value
   })
+  if (!written.accepted) return IDENTITY_SETTING_FAILED
+  // The document grants a short response-delivery window before reloading.
+  // Only its explicit acknowledgement proves that the reload was scheduled;
+  // any preflight or message error leaves truthful manual-refresh guidance.
+  const reload = await sendCapturedDocumentAction(browserApi, tab, document, {
+    action: 'reload'
+  })
+  return reload.accepted ? IDENTITY_SETTING_CHANGED : IDENTITY_SETTING_SAVED
 }
 
 export async function reloadCapturedTab(browserApi, tab, document) {
-  return sendCapturedDocumentAction(browserApi, tab, document, { action: 'reload' })
+  return (await sendCapturedDocumentAction(browserApi, tab, document, { action: 'reload' }))
+    .accepted
 }

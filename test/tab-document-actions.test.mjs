@@ -3,6 +3,9 @@ import test from 'node:test'
 
 import {
   getLocalSetting,
+  IDENTITY_SETTING_CHANGED,
+  IDENTITY_SETTING_FAILED,
+  IDENTITY_SETTING_SAVED,
   reloadCapturedTab,
   setLocalSetting
 } from '../src/tab-document-actions.mjs'
@@ -17,11 +20,21 @@ const createBrowser = ({ activeUrl = capturedDocument.url } = {}) => {
   const calls = []
   const messageResults = []
   const scriptResults = []
+  const messageEffects = []
+  let queryError
   const browserApi = {
     tabs: {
-      query: async () => [{ id: 7, url: activeUrl }],
+      query: async () => {
+        if (queryError) {
+          const error = queryError
+          queryError = undefined
+          throw error
+        }
+        return [{ id: 7, url: activeUrl }]
+      },
       sendMessage: async (...args) => {
         calls.push(['message', args])
+        messageEffects.shift()?.()
         const result = messageResults.shift()
         if (result instanceof Error) throw result
         return result
@@ -38,8 +51,10 @@ const createBrowser = ({ activeUrl = capturedDocument.url } = {}) => {
     browserApi,
     calls,
     messageResults,
+    messageEffects,
     scriptResults,
-    setActiveUrl: (url) => (activeUrl = url)
+    setActiveUrl: (url) => (activeUrl = url),
+    setQueryError: (error) => (queryError = error)
   }
 }
 
@@ -65,10 +80,75 @@ test('captures the top-level document and its actual URL', async () => {
   })
 })
 
-test('writes identity through an acknowledged exact-document reload command', async () => {
+test('writes identity before issuing a separately acknowledged exact-document reload command', async () => {
   const { browserApi, calls, messageResults } = createBrowser({
     activeUrl: 'https://app.example/contracts?method=deposit#write'
   })
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true
+  })
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'reload',
+    accepted: true
+  })
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedDocument.url },
+      capturedDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_CHANGED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message', 'message']
+  )
+  assert.deepEqual(calls[0][1], [
+    7,
+    { type: 'wren:document-action', action: 'setIdentity', value: true },
+    { documentId: 'document-1' }
+  ])
+  assert.deepEqual(calls[1][1], [
+    7,
+    { type: 'wren:document-action', action: 'reload' },
+    { documentId: 'document-1' }
+  ])
+})
+
+test('keeps the acknowledged identity saved when reload is not acknowledged', async () => {
+  const { browserApi, calls, messageResults } = createBrowser()
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true
+  })
+  messageResults.push(new Error('The document reloaded before the reload acknowledgement'))
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedDocument.url },
+      capturedDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_SAVED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message', 'message']
+  )
+})
+
+test('keeps the acknowledged identity saved when the reload preflight fails', async () => {
+  const { browserApi, messageEffects, messageResults, setQueryError } = createBrowser()
+  messageEffects.push(() => setQueryError(new Error('tabs query failed')))
   messageResults.push({
     type: 'wren:document-action-result',
     action: 'setIdentity',
@@ -83,17 +163,8 @@ test('writes identity through an acknowledged exact-document reload command', as
       '__frameAppearAsMM__',
       true
     ),
-    true
+    IDENTITY_SETTING_SAVED
   )
-  assert.deepEqual(
-    calls.map(([type]) => type),
-    ['message']
-  )
-  assert.deepEqual(calls[0][1], [
-    7,
-    { type: 'wren:document-action', action: 'setIdentity', value: true },
-    { documentId: 'document-1' }
-  ])
 })
 
 test('refuses a replaced document and a cross-origin active tab', async () => {
@@ -107,7 +178,7 @@ test('refuses a replaced document and a cross-origin active tab', async () => {
         '__frameAppearAsMM__',
         true
       ),
-      false
+      IDENTITY_SETTING_FAILED
     )
     assert.equal(
       calls.some(([type]) => type === 'message'),
@@ -125,9 +196,34 @@ test('refuses a replaced document and a cross-origin active tab', async () => {
       '__frameAppearAsMM__',
       true
     ),
-    false
+    IDENTITY_SETTING_FAILED
   )
   assert.equal(calls.length, 1)
+})
+
+test('reports a saved identity when the captured tab changes before reload dispatch', async () => {
+  const { browserApi, calls, messageEffects, messageResults, setActiveUrl } = createBrowser()
+  messageEffects.push(() => setActiveUrl('https://other.example/contracts'))
+  messageResults.push({
+    type: 'wren:document-action-result',
+    action: 'setIdentity',
+    accepted: true
+  })
+
+  assert.equal(
+    await setLocalSetting(
+      browserApi,
+      { id: 7, url: capturedDocument.url },
+      capturedDocument,
+      '__frameAppearAsMM__',
+      true
+    ),
+    IDENTITY_SETTING_SAVED
+  )
+  assert.deepEqual(
+    calls.map(([type]) => type),
+    ['message']
+  )
 })
 
 test('refreshes only after the captured document acknowledges the command', async () => {

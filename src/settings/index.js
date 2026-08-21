@@ -9,6 +9,8 @@ import { parseAuthenticationState, parsePageOrigin, toRpcChainId } from './proto
 import {
   getActiveTab,
   getLocalSetting,
+  IDENTITY_SETTING_CHANGED,
+  IDENTITY_SETTING_SAVED,
   isInjectedUrl,
   reloadCapturedTab,
   setLocalSetting
@@ -649,6 +651,9 @@ class _Settings extends React.Component {
   identityCancelRef = React.createRef()
   identityCurrentRef = React.createRef()
   identityDialogRef = React.createRef()
+  identityPendingRef = React.createRef()
+  identityRetryRef = React.createRef()
+  identitySavedRef = React.createRef()
 
   componentDidUpdate() {
     const chainSwitch = this.state.chainSwitch
@@ -702,16 +707,26 @@ class _Settings extends React.Component {
 
   identitySwitch = async (nextValue) => {
     if (this.state.identitySwitch.status === 'pending') return
-    this.setState({ identitySwitch: { status: 'pending', target: nextValue } })
-    const changed = await setLocalSetting(
+    this.setState({ identitySwitch: { status: 'pending', target: nextValue } }, () => {
+      this.identityPendingRef.current?.focus()
+    })
+    const result = await setLocalSetting(
       chrome,
       this.props.tab,
       this.props.tabDocument,
       APPEAR_AS_MM,
       nextValue
-    ).catch(() => false)
-    if (changed) window.close()
-    else this.setState({ identitySwitch: { status: 'failed', target: nextValue } })
+    ).catch(() => undefined)
+    if (result === IDENTITY_SETTING_CHANGED) window.close()
+    else if (result === IDENTITY_SETTING_SAVED) {
+      this.setState({ identitySwitch: { status: 'saved', target: nextValue } }, () => {
+        this.identitySavedRef.current?.focus()
+      })
+    } else {
+      this.setState({ identitySwitch: { status: 'failed', target: nextValue } }, () => {
+        this.identityRetryRef.current?.focus()
+      })
+    }
   }
 
   moveRadioSelection = (event) => {
@@ -1230,12 +1245,37 @@ class _Settings extends React.Component {
             </IdentityFeedback>
           ) : identitySwitch.status === 'pending' ? (
             <IdentityFeedback>
-              {this.statusNotice(
-                'Switching wallet',
-                `Refreshing this tab with ${targetIdentity}.`,
-                'Switching…',
-                'Pending'
-              )}
+              <StateNotice
+                ref={this.identityPendingRef}
+                role="status"
+                aria-live="polite"
+                tabIndex={-1}
+              >
+                <StateNoticeTitle>Switching wallet</StateNoticeTitle>
+                <StateNoticeBody>Refreshing this tab with {targetIdentity}.</StateNoticeBody>
+                <StateNoticeAction type="button" disabled>
+                  Switching…
+                </StateNoticeAction>
+                <StateNoticeStatus>Pending</StateNoticeStatus>
+              </StateNotice>
+            </IdentityFeedback>
+          ) : identitySwitch.status === 'saved' ? (
+            <IdentityFeedback>
+              <StateNotice role="status" aria-live="polite">
+                <StateNoticeTitle>Refresh required</StateNoticeTitle>
+                <StateNoticeBody>
+                  {targetIdentity} is saved. Return to the original tab and refresh it to finish
+                  switching.
+                </StateNoticeBody>
+                <StateNoticeAction
+                  ref={this.identitySavedRef}
+                  type="button"
+                  onClick={() => window.close()}
+                >
+                  Close Companion
+                </StateNoticeAction>
+                <StateNoticeStatus>Saved</StateNoticeStatus>
+              </StateNotice>
             </IdentityFeedback>
           ) : identitySwitch.status === 'failed' ? (
             <IdentityFeedback>
@@ -1243,6 +1283,7 @@ class _Settings extends React.Component {
                 <StateNoticeTitle>Wallet unchanged</StateNoticeTitle>
                 <StateNoticeBody>This tab could not switch to {targetIdentity}.</StateNoticeBody>
                 <StateNoticeAction
+                  ref={this.identityRetryRef}
                   type="button"
                   onClick={() => this.identitySwitch(identitySwitch.target)}
                 >

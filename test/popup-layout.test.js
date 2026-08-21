@@ -16,6 +16,10 @@ const tabDocumentActionsSource = fs.readFileSync(
   path.join(root, 'src', 'tab-document-actions.mjs'),
   'utf8'
 )
+const browserQualificationSource = fs.readFileSync(
+  path.join(root, 'scripts', 'qualify-browser.mjs'),
+  'utf8'
+)
 const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
 
 test('Companion shares Wren’s wallet canvas', () => {
@@ -142,6 +146,9 @@ test('injection identity changes require an explicit reload acknowledgement', ()
   assert.match(settingsSource, /aria-labelledby="identity-switch-title"/u)
   assert.match(settingsSource, /aria-describedby="identity-switch-description"/u)
   assert.match(settingsSource, /trapIdentityDialogFocus/u)
+  assert.match(settingsSource, /Refresh required/u)
+  assert.match(settingsSource, /Return to the original tab and refresh it to finish/u)
+  assert.match(settingsSource, /IDENTITY_SETTING_SAVED/u)
 })
 
 test('network switch feedback is driven by the background result rather than a timeout guess', () => {
@@ -187,10 +194,29 @@ test('identity reload writes the confirmed value only to the captured active doc
   assert.match(tabDocumentActionsSource, /browserApi\.tabs\.sendMessage/u)
   assert.match(injectionSource, /createDocumentActionListener/u)
   assert.match(documentActionsSource, /storage\.setItem\(IDENTITY_STORAGE_KEY, serialized\)/u)
-  assert.match(documentActionsSource, /sendResponse\([\s\S]*setTimer\(reload, 0\)/u)
-  assert.match(settingsSource, /if \(changed\) window\.close\(\)/u)
+  assert.match(tabDocumentActionsSource, /const written = await sendCapturedDocumentAction/u)
+  assert.match(
+    tabDocumentActionsSource,
+    /if \(!written\.accepted\) return IDENTITY_SETTING_FAILED[\s\S]*?return reload\.accepted \? IDENTITY_SETTING_CHANGED : IDENTITY_SETTING_SAVED/u
+  )
+  assert.match(
+    documentActionsSource,
+    /if \(message\.action === 'reload'\) setTimer\(reload, RELOAD_RESPONSE_GRACE_MS\)/u
+  )
+  assert.match(settingsSource, /if \(result === IDENTITY_SETTING_CHANGED\) window\.close\(\)/u)
+  assert.match(settingsSource, /identitySavedRef\.current\?\.focus\(\)/u)
+  assert.match(settingsSource, /identityRetryRef\.current\?\.focus\(\)/u)
+  assert.match(settingsSource, /identityPendingRef\.current\?\.focus\(\)/u)
   assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)
   assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
+})
+
+test('packaged Firefox qualification operates the real action-popup identity controls', () => {
+  assert.match(
+    browserQualificationSource,
+    /async function qualifyFirefoxPackagedCore\([\s\S]*?firefoxOpenActionPopup[\s\S]*?firefoxWaitForActionPopup[\s\S]*?Switch to MetaMask[\s\S]*?Switch to Wren/u
+  )
+  assert.match(browserQualificationSource, /competingMetaMaskWouldWinGenericSelection, false/u)
 })
 
 test('tab refresh runs only in the captured document and is unavailable without its identity', () => {
