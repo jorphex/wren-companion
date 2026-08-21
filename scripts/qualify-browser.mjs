@@ -499,65 +499,49 @@ async function firefoxChromeEvaluate(marionette, script, args = []) {
   }
 }
 
-async function firefoxOpenActionPopup(marionette, extensionId, panelRequested = false) {
+async function firefoxOpenActionPopup(marionette, extensionId) {
   const result = await firefoxChromeEvaluate(
     marionette,
     `
       const window = Services.wm.getMostRecentWindow('navigator:browser');
       const extensionId = arguments[0];
-      const panelRequested = arguments[1];
-      const idToken = extensionId.replace(/[^A-Za-z0-9_-]/g, '');
-      if (!panelRequested) {
-        window.focus();
-        window.gUnifiedExtensions.openPanel(null, 'extension_browser_action_popup');
-        return { opened: false, panelRequested: true };
-      }
-      const widgetId = 'webext-' + idToken + '-browser-action';
-      const widget = CustomizableUI.getWidget(widgetId)?.forWindow(window);
-      const toolbarButton = widget?.node?.querySelector('.unified-extensions-item-action-button');
-      if (toolbarButton) {
-        const rect = toolbarButton.getBoundingClientRect();
-        window.focus();
-        window.windowUtils.sendMouseEvent('mousedown', rect.x + rect.width / 2, rect.y + rect.height / 2, 0, 1, 0, true, 0, 0);
-        window.windowUtils.sendMouseEvent('mouseup', rect.x + rect.width / 2, rect.y + rect.height / 2, 0, 1, 0, true, 0, 0);
-        return { opened: true, id: toolbarButton.id, widgetId };
-      }
-      const candidates = [...window.document.querySelectorAll('[data-extensionid], [id$="-browser-action"]')];
-      let action = candidates.find(
-        (element) => element.getAttribute('data-extensionid') === extensionId
+      const extension = WebExtensionPolicy.getByID(extensionId)?.extension;
+      const { ExtensionParent } = ChromeUtils.importESModule(
+        'resource://gre/modules/ExtensionParent.sys.mjs'
       );
-      action ||= candidates.find((element) => element.id.includes(idToken));
-      if (!action) {
-        return {
-          opened: false,
-          unifiedExtensionsMethods:
-            typeof window.gUnifiedExtensions === 'object'
-              ? Object.getOwnPropertyNames(Object.getPrototypeOf(window.gUnifiedExtensions))
-              : [],
-          candidates: [...window.document.querySelectorAll('[id]')]
-            .filter((element) => /(?:extension|action|webext)/iu.test(element.id))
-            .slice(0, 80)
-            .map((element) => ({
-              id: element.id,
-              extensionId: element.getAttribute('data-extensionid')
-            }))
-        };
-      }
-      action.click();
-      return { opened: true, id: action.id };
+      const action = extension && ExtensionParent.apiManager.global.browserActionFor?.(extension);
+      if (!action) return { opened: false, reason: 'browser action unavailable' };
+      window.focus();
+      action.triggerAction(window);
+      return { opened: true };
     `,
-    [extensionId, panelRequested]
+    [extensionId]
   )
-  if (result?.panelRequested) {
-    await delay(300)
-    return firefoxOpenActionPopup(marionette, extensionId, true)
-  }
   if (!result?.opened) {
     throw new Error(
       `Firefox artifact qualification cannot open the packaged action popup: ${JSON.stringify(result)}`
     )
   }
-  await delay(300)
+  await waitFor(
+    async () =>
+      firefoxChromeEvaluate(
+        marionette,
+        `
+          const window = Services.wm.getMostRecentWindow('navigator:browser');
+          const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
+          const view = [...window.document.querySelectorAll('panelview[extension]')].find(
+            (candidate) => candidate.id.includes(idToken)
+          );
+          if (!view) return false;
+          const rect = view.getBoundingClientRect();
+          const panel = view.closest('panel') || view.closest('panelmultiview')?.parentElement;
+          return rect.width > 0 && rect.height > 0 && panel?.state === 'open';
+        `,
+        [extensionId]
+      ),
+    'Firefox packaged extension action panel',
+    10_000
+  )
 }
 
 async function firefoxReloadExtensionInBackground(marionette, url) {
@@ -1588,7 +1572,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     await firefoxOpenActionPopup(marionette, installed.value)
     await waitFor(
       () => desktop.identity('firefox', 'control'),
-      'Firefox packaged action-popup control pairing',
+      'Firefox packaged background control authentication',
       30_000
     )
     await marionette.request('WebDriver:Navigate', { url: `${top.origin}/` })
@@ -1636,7 +1620,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       'Firefox packaged BaseScan/Etherscan-compatible selection requests account access'
     )
     console.log(
-      'firefox artifact qualification: packaged action-popup pairing and provider/auth/legacy core passed'
+      'firefox artifact qualification: packaged toolbar action panel, background control/page authentication, and provider/legacy core passed'
     )
   } catch (error) {
     throw new Error(`${error.message}\nFirefox packaged-core diagnostics:\n${stderr.slice(-4000)}`)
@@ -1673,7 +1657,7 @@ async function qualify(browser) {
     else if (artifactMode) await qualifyFirefoxPackagedCore(root, extension, desktop, top, frame)
     else await qualifyFirefox(root, extension, desktop, top, frame)
     console.log(
-      `${browser}: qualified ${artifactMode ? 'packaged ' : ''}EIP-6963, protocol 3, isolated origins, and ${artifactMode && browser === 'firefox' ? 'provider/auth core' : 'popup states at 100/125/150%'} in a disposable profile on port ${desktop.port}`
+      `${browser}: qualified ${artifactMode ? 'packaged ' : ''}EIP-6963, protocol 3, isolated origins, and ${artifactMode && browser === 'firefox' ? 'toolbar invocation plus background control/page authentication and provider core' : 'popup states at 100/125/150%'} in a disposable profile on port ${desktop.port}`
     )
   } finally {
     await Promise.allSettled([desktop.close(), top.close(), frame.close()])
