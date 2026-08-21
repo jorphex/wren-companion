@@ -580,11 +580,35 @@ async function firefoxActionPopupEvaluate(marionette, extensionId, expression) {
 }
 
 async function firefoxWaitForActionPopup(marionette, extensionId, expression, label) {
-  await waitFor(
-    () => firefoxActionPopupEvaluate(marionette, extensionId, `Boolean(${expression})`),
-    label,
-    15_000
-  )
+  try {
+    await waitFor(
+      () => firefoxActionPopupEvaluate(marionette, extensionId, `Boolean(${expression})`),
+      label,
+      15_000
+    )
+  } catch (error) {
+    const diagnostics = await firefoxChromeEvaluate(
+      marionette,
+      `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
+        const view = [...window.document.querySelectorAll('panelview[extension]')].find(
+          (candidate) => candidate.id.includes(idToken)
+        );
+        const browser = view?.querySelector('browser');
+        const document = browser?.contentDocument;
+        return {
+          browserSrc: browser?.getAttribute('src'),
+          currentUri: browser?.currentURI?.spec,
+          documentUrl: document?.URL,
+          readyState: document?.readyState,
+          text: document?.body?.textContent?.slice(0, 500)
+        };
+      `,
+      [extensionId]
+    )
+    throw new Error(`${error.message}: ${JSON.stringify(diagnostics)}`)
+  }
 }
 
 async function selectFirefoxDappBehindPopup(marionette, origin) {
