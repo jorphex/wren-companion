@@ -51,7 +51,7 @@ export default [
     }
   },
   {
-    files: ['src/**/*.js', 'qualification/**/*.js'],
+    files: ['src/**/*.{js,mjs}', 'qualification/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -74,6 +74,7 @@ export default [
       'src/index.js',
       'src/inject.js',
       'src/legacy-provider.js',
+      'src/latest-operation.js',
       'src/network-catalog-cache.js',
       'src/network-refresh.js',
       'src/page-session-capacity.js',

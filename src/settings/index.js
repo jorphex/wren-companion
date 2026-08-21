@@ -6,6 +6,13 @@ import styled from 'styled-components'
 import { Cluster, ClusterValue, ClusterRow, ClusterBoxMain } from './Cluster'
 import { getChainColorToken } from './chain-identity.mjs'
 import { parseAuthenticationState, parsePageOrigin, toRpcChainId } from './protocol.mjs'
+import {
+  getActiveTab,
+  getLocalSetting,
+  isInjectedUrl,
+  reloadCapturedTab,
+  setLocalSetting
+} from '../tab-document-actions.mjs'
 
 const APPEAR_AS_MM = '__frameAppearAsMM__'
 
@@ -51,109 +58,6 @@ const actions = {
 }
 
 const store = Restore.create(initialState, actions)
-
-async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
-  return tabs[0]
-}
-
-async function executeScript(tabId, func, args, documentId) {
-  try {
-    const result = await chrome.scripting.executeScript({
-      target: {
-        tabId,
-        ...(documentId ? { documentIds: [documentId] } : {})
-      },
-      func,
-      args
-    })
-
-    return result
-  } catch (e) {
-    // this can happen when trying to open the settings panel while on a tab that doesn't support
-    // script injection, such as a chrome:// tab
-    return []
-  }
-}
-
-async function getLocalSetting(tab) {
-  const results = await executeScript(
-    tab.id,
-    (key) => ({ value: localStorage.getItem(key), url: window.location.href }),
-    [APPEAR_AS_MM]
-  )
-  const result = results?.[0]
-
-  if (!result || result.result?.url !== tab.url) return { value: false }
-
-  const documentId =
-    typeof result.documentId === 'string' &&
-    result.documentId.length > 0 &&
-    result.documentId.length <= 256
-      ? result.documentId
-      : undefined
-
-  try {
-    return {
-      value: JSON.parse(result.result.value || false),
-      ...(documentId ? { documentId } : {}),
-      url: result.result.url
-    }
-  } catch {
-    return { value: false }
-  }
-}
-
-async function setLocalSetting(tab, document, setting, value) {
-  const activeTab = await getActiveTab()
-  if (
-    !document?.documentId ||
-    activeTab?.id !== tab.id ||
-    !isInjectedUrl(activeTab.url) ||
-    activeTab.url !== document.url
-  ) {
-    return false
-  }
-
-  const results = await executeScript(
-    tab.id,
-    (key, value, expectedUrl) => {
-      if (window.location.href !== expectedUrl) return false
-      localStorage.setItem(key, JSON.stringify(value))
-      window.location.reload()
-      return true
-    },
-    [setting, value, document.url],
-    document.documentId
-  )
-
-  return results?.[0]?.result === true
-}
-
-async function reloadCapturedTab(tab, document) {
-  const activeTab = await getActiveTab()
-  if (
-    !document?.documentId ||
-    activeTab?.id !== tab.id ||
-    !isInjectedUrl(activeTab.url) ||
-    activeTab.url !== document.url
-  ) {
-    return false
-  }
-
-  const results = await executeScript(
-    tab.id,
-    (expectedUrl) => {
-      if (window.location.href !== expectedUrl) return false
-      window.location.reload()
-      return true
-    },
-    [document.url],
-    document.documentId
-  )
-
-  return results?.[0]?.result === true
-}
 
 const SettingsScroll = styled.main`
   display: flex;
@@ -698,8 +602,6 @@ const ChainButtonControl = styled.button`
 
 const chainConnected = ({ connected }) => connected === undefined || connected
 
-const isInjectedUrl = (url = '') => url.startsWith('http://') || url.startsWith('https://')
-
 const ChainButton = ({ chain, selected, pending, tabStop, onSwitch }) => {
   const controlRef = React.useRef(null)
   const { chainId, name } = chain
@@ -802,6 +704,7 @@ class _Settings extends React.Component {
     if (this.state.identitySwitch.status === 'pending') return
     this.setState({ identitySwitch: { status: 'pending', target: nextValue } })
     const changed = await setLocalSetting(
+      chrome,
       this.props.tab,
       this.props.tabDocument,
       APPEAR_AS_MM,
@@ -1089,7 +992,9 @@ class _Settings extends React.Component {
         : 'Companion could not confirm this tab’s current document. Reload the tab, then reopen Companion.',
       canRefresh ? 'Refresh this tab' : undefined,
       canRefresh ? 'Not connected' : 'Document changed',
-      canRefresh ? () => reloadCapturedTab(this.props.tab, this.props.tabDocument) : undefined,
+      canRefresh
+        ? () => reloadCapturedTab(chrome, this.props.tab, this.props.tabDocument)
+        : undefined,
       interactionLocked
     )
   }
@@ -1512,12 +1417,10 @@ const Settings = Restore.connect(_Settings, store)
 
 const frameConnect = chrome.runtime.connect({ name: 'frame_settings' })
 let framePortConnected = true
-let refreshTimer
 
 const disconnectFramePort = () => {
   if (!framePortConnected) return
   framePortConnected = false
-  clearInterval(refreshTimer)
   store.setFrameConnected(false)
   store.setDesktopStatus('unavailable')
   store.setAuthentication({ status: 'disconnected' })
@@ -1538,9 +1441,7 @@ const postFrameMessage = (message) => {
   }
 }
 
-refreshTimer = setInterval(() => postFrameMessage({ type: 'refresh' }), 5000)
 frameConnect.onDisconnect.addListener(disconnectFramePort)
-window.addEventListener('unload', () => clearInterval(refreshTimer), { once: true })
 
 frameConnect.onMessage.addListener((state) => {
   if (state.type === 'chainSwitchResult') {
@@ -1565,11 +1466,11 @@ frameConnect.onMessage.addListener((state) => {
 })
 
 async function getInitialSettings(tab) {
-  return getLocalSetting(tab)
+  return getLocalSetting(chrome, tab, APPEAR_AS_MM)
 }
 
 document.addEventListener('DOMContentLoaded', async function () {
-  const activeTab = await getActiveTab()
+  const activeTab = await getActiveTab(chrome)
   const isInjectedTab = isInjectedUrl(activeTab?.url)
 
   const tabDocument = isInjectedTab ? await getInitialSettings(activeTab) : { value: false }

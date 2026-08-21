@@ -476,11 +476,22 @@ async function chromeExtensionWorker(cdp, desktop) {
 }
 
 async function openChromePopup(cdp, workerSession, extensionId, label) {
-  await cdp.send(
-    'Runtime.evaluate',
-    { expression: 'chrome.action.openPopup()', awaitPromise: true },
-    workerSession
-  )
+  let openError
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const opened = await cdp.send(
+      'Runtime.evaluate',
+      { expression: 'chrome.action.openPopup()', awaitPromise: true },
+      workerSession
+    )
+    openError = opened.exceptionDetails
+    if (!openError) break
+    await delay(500)
+  }
+  if (openError) {
+    throw new Error(
+      `Could not open Companion action popup (${label}): ${openError.exception?.description || openError.text}`
+    )
+  }
   let popupTarget
   try {
     await waitFor(async () => {
@@ -677,6 +688,14 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     )
     await settings.waitFor(`document.querySelector('[role="alertdialog"]')`)
     await qualifyChromePopupLayout(settings, 'identity-confirmation')
+    await page.evaluate(
+      `history.replaceState(history.state, '', '/?idle=1&identity-route=changed#same-document')`
+    )
+    assert.equal(
+      await page.evaluate(`location.search === '?idle=1&identity-route=changed'`),
+      true,
+      'Chrome identity switch survives a same-document route change'
+    )
     await settings.evaluate(
       `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click()`
     )
@@ -1025,6 +1044,20 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       'Firefox identity confirmation'
     )
     await qualifyFirefoxPopupLayout(marionette, 'identity-confirmation')
+    await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
+    const firefoxRouteChanged = await firefoxEvaluate(
+      marionette,
+      `(() => {
+        history.replaceState(history.state, '', '/?idle=1&identity-route=changed#same-document');
+        return location.search === '?idle=1&identity-route=changed';
+      })()`
+    )
+    assert.equal(
+      firefoxRouteChanged,
+      true,
+      'Firefox identity switch survives a same-document route change'
+    )
+    await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     const selectedDappBehindPopup = await firefoxChromeEvaluate(
       marionette,
       `

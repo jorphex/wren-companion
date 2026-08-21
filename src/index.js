@@ -7,6 +7,7 @@ const {
 const { AuthenticatedSocket } = require('./authenticated-socket')
 const { CredentialStore, IndexedDbCredentialStorage } = require('./credential-store')
 const { networkRefreshFailure, networkRefreshSuccess } = require('./network-refresh')
+const { LatestOperation } = require('./latest-operation')
 const {
   clearNetworkCatalogCache,
   loadNetworkCatalogCache,
@@ -48,7 +49,7 @@ const frameState = {
   chainsError: null,
   authentication: { status: 'disconnected' }
 }
-let chainsRefreshPromise
+const chainsRefresh = new LatestOperation()
 let lastChainsErrorDiagnostic = ''
 
 function setIcon(path) {
@@ -219,6 +220,7 @@ const control = new ControlClient({
     refreshAvailableChains(client)
   },
   onClose: () => {
+    chainsRefresh.invalidate()
     setAuthenticationReady(false)
     lastChainsErrorDiagnostic = ''
     for (const port of settingsPorts) {
@@ -240,16 +242,17 @@ loadNetworkCatalogCache(chrome.storage.local)
   .finally(() => control.connect())
 
 function refreshAvailableChains(client = control) {
-  if (chainsRefreshPromise) return chainsRefreshPromise
-  setFrameState({ chainsStatus: 'loading', chainsError: null })
-  chainsRefreshPromise = client
-    .request('wallet_getEthereumChains')
-    .then((chains) => {
+  if (!chainsRefresh.isActive()) {
+    setFrameState({ chainsStatus: 'loading', chainsError: null })
+  }
+  return chainsRefresh.run(
+    () => client.request('wallet_getEthereumChains'),
+    (chains) => {
       lastChainsErrorDiagnostic = ''
       setFrameState(networkRefreshSuccess(chains))
       saveNetworkCatalogCache(chrome.storage.local, chains).catch(() => {})
-    })
-    .catch((error) => {
+    },
+    (error) => {
       if (!frameState.connected) return
       const failure = networkRefreshFailure(error)
       const diagnostic = JSON.stringify(failure.chainsError)
@@ -258,11 +261,8 @@ function refreshAvailableChains(client = control) {
         console.warn('Wren Companion could not refresh networks', failure.chainsError)
       }
       setFrameState(failure)
-    })
-    .finally(() => {
-      chainsRefreshPromise = undefined
-    })
-  return chainsRefreshPromise
+    }
+  )
 }
 
 async function initializeSettingsPort(port) {

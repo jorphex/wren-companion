@@ -11,6 +11,10 @@ const backgroundSource = fs.readFileSync(path.join(root, 'src', 'index.js'), 'ut
 const injectionSource = fs.readFileSync(path.join(root, 'src', 'inject.js'), 'utf8')
 const networkRefreshSource = fs.readFileSync(path.join(root, 'src', 'network-refresh.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
+const tabDocumentActionsSource = fs.readFileSync(
+  path.join(root, 'src', 'tab-document-actions.mjs'),
+  'utf8'
+)
 const webpackSource = fs.readFileSync(path.join(root, 'webpack.config.js'), 'utf8')
 
 test('Companion shares Wren’s wallet canvas', () => {
@@ -175,26 +179,27 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
 })
 
 test('identity reload writes the confirmed value only to the captured active document', () => {
-  assert.match(settingsSource, /setLocalSetting\(\n\s*this\.props\.tab,/u)
-  assert.match(settingsSource, /activeTab\?\.id !== tab\.id/u)
-  assert.match(settingsSource, /activeTab\.url !== document\.url/u)
-  assert.match(settingsSource, /documentIds: \[documentId\]/u)
-  assert.match(settingsSource, /localStorage\.setItem\(key, JSON\.stringify\(value\)\)/u)
+  assert.match(settingsSource, /setLocalSetting\(\n\s*chrome,\n\s*this\.props\.tab,/u)
+  assert.match(tabDocumentActionsSource, /activeTab\?\.id === tab\?\.id/u)
+  assert.match(tabDocumentActionsSource, /sameOrigin\(activeTab\.url, document\.url\)/u)
+  assert.match(tabDocumentActionsSource, /documentIds: \[documentId\]/u)
+  assert.match(tabDocumentActionsSource, /localStorage\.setItem\(storageKey, serialized\)/u)
+  assert.match(tabDocumentActionsSource, /setTimeout\(\(\) => window\.location\.reload\(\), 0\)/u)
   assert.match(settingsSource, /if \(changed\) window\.close\(\)/u)
+  assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)
   assert.doesNotMatch(settingsSource, /toggleLocalSetting/u)
 })
 
 test('tab refresh runs only in the captured document and is unavailable without its identity', () => {
-  assert.match(settingsSource, /async function reloadCapturedTab/u)
-  assert.match(settingsSource, /documentIds: \[documentId\]/u)
-  assert.match(settingsSource, /window\.location\.reload\(\)/u)
-  assert.match(settingsSource, /!document\?\.documentId/u)
+  assert.match(tabDocumentActionsSource, /export async function reloadCapturedTab/u)
+  assert.match(tabDocumentActionsSource, /documentIds: \[documentId\]/u)
+  assert.match(tabDocumentActionsSource, /runCapturedDocumentAction/u)
   assert.match(
     settingsSource,
     /const canRefresh = Boolean\(this\.props\.tabDocument\?\.documentId\)/u
   )
   assert.match(settingsSource, /canRefresh \? 'Refresh this tab' : 'Refresh unavailable'/u)
-  assert.doesNotMatch(settingsSource, /chrome\.tabs\.reload/u)
+  assert.doesNotMatch(tabDocumentActionsSource, /browserApi\.tabs\.reload/u)
 })
 
 test('uses a distinct warning role, readable accent focus, one styled ledger scrollbar, and truthful typography docs', () => {
