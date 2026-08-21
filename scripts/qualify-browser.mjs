@@ -563,20 +563,41 @@ async function firefoxOpenActionPopup(marionette, extensionId) {
 }
 
 async function firefoxActionPopupEvaluate(marionette, extensionId, expression) {
-  return firefoxChromeEvaluate(
-    marionette,
-    `
-      const window = Services.wm.getMostRecentWindow('navigator:browser');
-      const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
-      const view = [...window.document.querySelectorAll('panelview[extension]')].find(
-        (candidate) => candidate.id.includes(idToken)
-      );
-      const document = view?.querySelector('browser')?.contentDocument;
-      if (!document) return false;
-      return Function('document', 'return (' + arguments[1] + ')')(document);
-    `,
-    [extensionId, expression]
-  )
+  await marionette.request('Marionette:SetContext', { value: 'chrome' })
+  let switched = false
+  try {
+    const browserResult = await marionette.request('WebDriver:ExecuteScript', {
+      script: `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
+        const view = [...window.document.querySelectorAll('panelview[extension]')].find(
+          (candidate) => candidate.id.includes(idToken)
+        );
+        return view?.querySelector('browser') || null;
+      `,
+      args: [extensionId],
+      newSandbox: false,
+      sandbox: 'system'
+    })
+    const browserElement = browserResult.value
+    const elementId =
+      browserElement?.['element-6066-11e4-a52e-4f735466cecf'] || browserElement?.ELEMENT
+    if (!elementId) return false
+
+    await marionette.request('WebDriver:SwitchToFrame', { element: elementId })
+    switched = true
+    await marionette.request('Marionette:SetContext', { value: 'content' })
+    const result = await marionette.request('WebDriver:ExecuteScript', {
+      script: `return (${expression})`,
+      args: [],
+      newSandbox: false
+    })
+    return result.value === undefined ? result : result.value
+  } finally {
+    await marionette.request('Marionette:SetContext', { value: 'chrome' }).catch(() => {})
+    if (switched) await marionette.request('WebDriver:SwitchToParentFrame').catch(() => {})
+    await marionette.request('Marionette:SetContext', { value: 'content' }).catch(() => {})
+  }
 }
 
 async function firefoxWaitForActionPopup(marionette, extensionId, expression, label) {
@@ -587,25 +608,10 @@ async function firefoxWaitForActionPopup(marionette, extensionId, expression, la
       15_000
     )
   } catch (error) {
-    const diagnostics = await firefoxChromeEvaluate(
+    const diagnostics = await firefoxActionPopupEvaluate(
       marionette,
-      `
-        const window = Services.wm.getMostRecentWindow('navigator:browser');
-        const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
-        const view = [...window.document.querySelectorAll('panelview[extension]')].find(
-          (candidate) => candidate.id.includes(idToken)
-        );
-        const browser = view?.querySelector('browser');
-        const document = browser?.contentDocument;
-        return {
-          browserSrc: browser?.getAttribute('src'),
-          currentUri: browser?.currentURI?.spec,
-          documentUrl: document?.URL,
-          readyState: document?.readyState,
-          text: document?.body?.textContent?.slice(0, 500)
-        };
-      `,
-      [extensionId]
+      extensionId,
+      `({ documentUrl: document.URL, readyState: document.readyState, text: document.body?.textContent?.slice(0, 500) })`
     )
     throw new Error(`${error.message}: ${JSON.stringify(diagnostics)}`)
   }
