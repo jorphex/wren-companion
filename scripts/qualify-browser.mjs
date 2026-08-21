@@ -525,11 +525,12 @@ async function firefoxOpenActionPopup(marionette, extensionId) {
       `Firefox artifact qualification cannot open the packaged action popup: ${JSON.stringify(result)}`
     )
   }
-  await waitFor(
-    async () =>
-      firefoxChromeEvaluate(
-        marionette,
-        `
+  try {
+    await waitFor(
+      async () =>
+        firefoxChromeEvaluate(
+          marionette,
+          `
           const window = Services.wm.getMostRecentWindow('navigator:browser');
           const idToken = arguments[0].replace(/[^A-Za-z0-9_-]/g, '');
           const view = [...window.document.querySelectorAll('panelview[extension]')].find(
@@ -540,11 +541,25 @@ async function firefoxOpenActionPopup(marionette, extensionId) {
           const panel = view.closest('panel') || view.closest('panelmultiview')?.parentElement;
           return rect.width > 0 && rect.height > 0 && panel?.state === 'open';
         `,
-        [extensionId]
-      ),
-    'Firefox packaged extension action panel',
-    10_000
-  )
+          [extensionId]
+        ),
+      'Firefox packaged extension action panel',
+      10_000
+    )
+  } catch (error) {
+    const diagnostics = await firefoxChromeEvaluate(
+      marionette,
+      `
+        const window = Services.wm.getMostRecentWindow('navigator:browser');
+        return [...window.document.querySelectorAll('panelview[extension]')].map((view) => {
+          const rect = view.getBoundingClientRect();
+          const panel = view.closest('panel') || view.closest('panelmultiview')?.parentElement;
+          return { id: view.id, width: rect.width, height: rect.height, panelState: panel?.state };
+        });
+      `
+    )
+    throw new Error(`${error.message}: ${JSON.stringify(diagnostics)}`)
+  }
 }
 
 async function firefoxActionPopupEvaluate(marionette, extensionId, expression) {
