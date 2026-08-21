@@ -34,15 +34,18 @@ if (storeDappUrl) {
     'Store dapp capture is restricted to the reviewed Uniswap example'
   )
 }
-const availableChains = Array.from({ length: 18 }, (_, index) => ({
-  chainId: index + 1,
-  name:
-    index === 0
-      ? 'Ethereum'
-      : `Qualification network ${String(index + 1).padStart(2, '0')} with a long readable name`,
-  connected: true,
-  isTestnet: index > 0
-}))
+const availableChains = [
+  ...Array.from({ length: 18 }, (_, index) => ({
+    chainId: index + 1,
+    name:
+      index === 0
+        ? 'Ethereum'
+        : `Qualification network ${String(index + 1).padStart(2, '0')} with a long readable name`,
+    connected: true,
+    isTestnet: index > 0
+  })),
+  { chainId: 8453, name: 'Base', connected: true, isTestnet: false }
+]
 const storeCaptureChains = [
   { chainId: 1, name: 'Ethereum', connected: true, isTestnet: false },
   { chainId: 10, name: 'Optimism', connected: true, isTestnet: false },
@@ -97,6 +100,20 @@ async function waitFor(check, label, timeout = defaultWaitTimeout) {
     await delay(100)
   }
   throw new Error(`Timed out waiting for ${label}`)
+}
+
+function assertExplorerConnectionRequests(requests, origin, label) {
+  const relevant = requests.filter(
+    ({ method, origin: requestOrigin }) =>
+      requestOrigin === origin &&
+      ['eth_chainId', 'wallet_switchEthereumChain', 'eth_requestAccounts'].includes(method)
+  )
+  assert.deepEqual(
+    relevant.map(({ method }) => method),
+    ['eth_chainId', 'wallet_switchEthereumChain', 'eth_chainId', 'eth_requestAccounts'],
+    `${label} uses the BaseScan switch-before-account sequence`
+  )
+  assert.equal(relevant[1].requestedChainId, '0x2105', `${label} requests Base chain 8453`)
 }
 
 async function availablePort() {
@@ -160,6 +177,7 @@ globalThis.__wren = {
   announcements: [],
   results: [],
   accountChanges: [],
+  chainChanges: [],
   loadToken: Math.random().toString(36).slice(2) + Date.now()
 };
 function report(value) {
@@ -174,6 +192,9 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
     event.detail.provider.on('accountsChanged', (accounts) => {
       globalThis.__wren.accountChanges.push(accounts);
     });
+    event.detail.provider.on('chainChanged', (chainId) => {
+      globalThis.__wren.chainChanges.push(chainId);
+    });
   }
   globalThis.__wren.provider = event.detail.provider;
   if (!${JSON.stringify(activateProvider)}) {
@@ -187,7 +208,7 @@ window.addEventListener('eip6963:announceProvider', async (event) => {
     report({ kind: '${this.kind}', type: 'error', message: error?.message || String(error) });
   }
 });
-globalThis.__wren.selectExplorerProvider = async () => {
+globalThis.__wren.selectExplorerProvider = async (requiredChainId = '0x2105') => {
   const legacy = window.ethereum;
   const legacyCandidates = Array.isArray(legacy?.providers) ? legacy.providers : [legacy];
   const provider = globalThis.__wren.provider;
@@ -200,11 +221,24 @@ globalThis.__wren.selectExplorerProvider = async () => {
   if (legacy !== provider || typeof legacy.enable !== 'function') {
     throw new Error('The selected Wren provider is not the deterministic legacy provider');
   }
+  const chainBefore = await legacy.request({ method: 'eth_chainId' });
+  if (chainBefore !== requiredChainId) {
+    await legacy.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: requiredChainId }]
+    });
+  }
+  const chainAfter = await legacy.request({ method: 'eth_chainId' });
+  if (chainAfter !== requiredChainId) {
+    throw new Error('The selected Wren provider did not switch to the explorer network');
+  }
   return {
     selectedAnnouncement: provider === globalThis.__wren.provider,
     selectedLegacyProvider: legacy === provider && legacyCandidates.includes(provider),
     competingMetaMaskWouldWinGenericSelection:
       legacyCandidates.find((candidate) => candidate?.isMetaMask === true) === incumbent,
+    chainBefore,
+    chainAfter,
     accounts: await legacy.enable()
   };
 };
@@ -909,16 +943,17 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
     assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
+    assert.equal(explorerSelection.chainBefore, '0x1')
+    assert.equal(explorerSelection.chainAfter, '0x2105')
     const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await page.waitFor(`globalThis.__wren.accountChanges.length === 1`)
     assert.deepEqual(await page.evaluate(`globalThis.__wren.accountChanges`), [enabledAccounts])
-    assert.equal(
-      desktop.requests
-        .slice(requestCountBeforeLegacyEnable)
-        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
-      true,
-      'Chrome BaseScan/Etherscan-compatible wallet selection requests account access'
+    assert.deepEqual(await page.evaluate(`globalThis.__wren.chainChanges`), ['0x2105'])
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeLegacyEnable),
+      top.origin,
+      'Chrome Wren identity'
     )
 
     const authenticatedExtensionId = desktop.authentications.find(
@@ -929,7 +964,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'connected')
     const buttonExpression = `[...document.querySelectorAll('button')].find((button) => button.textContent.trim().startsWith('Reset pairing'))`
     await settings.waitFor(buttonExpression)
-    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 19`)
     await qualifyChromePopupLayout(settings, 'connected')
     await settings.evaluate(
       `document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' })`
@@ -942,7 +977,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     )
     settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'idle connected tab')
     await settings.waitFor(
-      `document.querySelectorAll('[data-chain-id]').length === 18 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`
+      `document.querySelectorAll('[data-chain-id]').length === 19 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask')`
     )
     assert.equal(
       await settings.evaluate(`document.body.textContent.includes('Refresh this tab')`),
@@ -989,7 +1024,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await settings.evaluate(
       `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Refresh networks').click()`
     )
-    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 19`)
     await settings.close()
 
     const controlAuthenticationsBeforeCachedCatalogFailure = desktop.authentications.filter(
@@ -1014,7 +1049,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await cdp.send('Target.activateTarget', { targetId: page.targetId })
     settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'cached networks')
     await settings.waitFor(
-      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 19`,
       15_000
     )
     await assertRefreshWarningRole((expression) => settings.evaluate(expression), 'Chrome')
@@ -1041,7 +1076,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       { expression: `chrome.alarms.create('check-client-status', { when: Date.now() + 50 })` },
       workerTarget.sessionId
     )
-    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+    await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 19`)
     await settings.evaluate(
       `[...document.querySelectorAll('[role="radio"]')].find((control) => control.textContent.trim() === 'MetaMask').click()`
     )
@@ -1094,6 +1129,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       true,
       'Chrome identity switch survives a same-document route change'
     )
+    desktop.resetOrigin(top.origin)
     const chromeWrenDocument = await page.evaluate(`globalThis.__wren.loadToken`)
     await settings.evaluate(
       `[...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Switch to MetaMask').click()`
@@ -1101,6 +1137,22 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await page.waitFor(
       `document.readyState === 'complete' && globalThis.__wren?.loadToken !== ${JSON.stringify(chromeWrenDocument)} && globalThis.__wren?.provider?.isWren !== true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       30_000
+    )
+    const requestCountBeforeMetaMaskConnection = desktop.requests.length
+    const chromeMetaMaskSelection = await page.evaluate(
+      `globalThis.__wren.selectExplorerProvider()`
+    )
+    assert.equal(chromeMetaMaskSelection.chainBefore, '0x1')
+    assert.equal(chromeMetaMaskSelection.chainAfter, '0x2105')
+    assert.deepEqual(chromeMetaMaskSelection.accounts, [
+      '0x0000000000000000000000000000000000000001'
+    ])
+    await page.waitFor(`globalThis.__wren.accountChanges.length === 1`)
+    assert.deepEqual(await page.evaluate(`globalThis.__wren.chainChanges`), ['0x2105'])
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeMetaMaskConnection),
+      top.origin,
+      'Chrome MetaMask identity'
     )
     await cdp.send('Target.activateTarget', { targetId: page.targetId })
     settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'switched identity')
@@ -1181,7 +1233,7 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       )
       await delay(250)
       settings = await openChromePopup(cdp, workerTarget.sessionId, extensionId, 'credential reset')
-      await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 18`)
+      await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 19`)
     }
     const oldFingerprints = new Set(
       desktop.authentications
@@ -1444,6 +1496,8 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
     assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
+    assert.equal(explorerSelection.chainBefore, '0x1')
+    assert.equal(explorerSelection.chainAfter, '0x2105')
     const enabledAccounts = explorerSelection.accounts
     assert.deepEqual(enabledAccounts, ['0x0000000000000000000000000000000000000001'])
     await firefoxWaitFor(
@@ -1455,17 +1509,19 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.accountChanges`),
       [enabledAccounts]
     )
-    assert.equal(
-      desktop.requests
-        .slice(requestCountBeforeLegacyEnable)
-        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
-      true,
-      'Firefox BaseScan/Etherscan-compatible wallet selection requests account access'
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.chainChanges`),
+      ['0x2105']
+    )
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeLegacyEnable),
+      top.origin,
+      'Firefox Wren identity'
     )
     await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     await firefoxWaitFor(
       marionette,
-      `document.body.textContent.includes('Reset pairing') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      `document.body.textContent.includes('Reset pairing') && document.querySelectorAll('[data-chain-id]').length === 19`,
       'Firefox connected popup'
     )
     await qualifyFirefoxPopupLayout(marionette, 'connected')
@@ -1490,7 +1546,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     await firefoxWaitFor(
       marionette,
-      `document.querySelectorAll('[data-chain-id]').length === 18 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask') && !document.body.textContent.includes('Refresh this tab')`,
+      `document.querySelectorAll('[data-chain-id]').length === 19 && [...document.querySelectorAll('[role="radio"]')].some((control) => control.textContent.trim() === 'MetaMask') && !document.body.textContent.includes('Refresh this tab')`,
       'Firefox idle connected popup'
     )
     desktop.availableChains = {}
@@ -1503,7 +1559,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     await marionette.request('WebDriver:SwitchToWindow', { handle: popupHandle })
     await firefoxWaitFor(
       marionette,
-      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 18`,
+      `document.body.textContent.includes('Wren could not refresh its available networks.') && document.querySelectorAll('[data-chain-id]').length === 19`,
       'Firefox network refresh error'
     )
     await assertRefreshWarningRole(
@@ -1566,6 +1622,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       [top.origin]
     )
     assert.equal(selectedDappBehindPopup, true, 'Firefox dapp tab remains active behind popup')
+    desktop.resetOrigin(top.origin)
     await firefoxEvaluate(
       marionette,
       `(() => {
@@ -1580,6 +1637,30 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
       marionette,
       `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren !== true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       'Firefox identity switch reload'
+    )
+    const requestCountBeforeMetaMaskConnection = desktop.requests.length
+    const firefoxMetaMaskSelection = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.selectExplorerProvider()`
+    )
+    assert.equal(firefoxMetaMaskSelection.chainBefore, '0x1')
+    assert.equal(firefoxMetaMaskSelection.chainAfter, '0x2105')
+    assert.deepEqual(firefoxMetaMaskSelection.accounts, [
+      '0x0000000000000000000000000000000000000001'
+    ])
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.accountChanges.length === 1`,
+      'Firefox MetaMask-identity account grant event'
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.chainChanges`),
+      ['0x2105']
+    )
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeMetaMaskConnection),
+      top.origin,
+      'Firefox MetaMask identity'
     )
     const firefoxMetaMaskDocument = await firefoxEvaluate(
       marionette,
@@ -1766,18 +1847,22 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     assert.equal(explorerSelection.selectedAnnouncement, true)
     assert.equal(explorerSelection.selectedLegacyProvider, true)
     assert.equal(explorerSelection.competingMetaMaskWouldWinGenericSelection, false)
+    assert.equal(explorerSelection.chainBefore, '0x1')
+    assert.equal(explorerSelection.chainAfter, '0x2105')
     assert.deepEqual(explorerSelection.accounts, ['0x0000000000000000000000000000000000000001'])
     await firefoxWaitFor(
       marionette,
       `(window.wrappedJSObject || window).__wren.accountChanges.length === 1`,
       'Firefox packaged account grant event'
     )
-    assert.equal(
-      desktop.requests
-        .slice(requestCountBeforeLegacyEnable)
-        .some(({ method, origin }) => method === 'eth_requestAccounts' && origin === top.origin),
-      true,
-      'Firefox packaged BaseScan/Etherscan-compatible selection requests account access'
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.chainChanges`),
+      ['0x2105']
+    )
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeLegacyEnable),
+      top.origin,
+      'Firefox packaged Wren identity'
     )
     const firefoxWrenDocument = await firefoxEvaluate(
       marionette,
@@ -1795,6 +1880,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       true,
       'Firefox packaged dapp tab remains active behind the action popup'
     )
+    desktop.resetOrigin(top.origin)
     await firefoxActionPopupEvaluate(
       marionette,
       installed.value,
@@ -1815,6 +1901,30 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       marionette,
       `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       'Firefox packaged action-popup MetaMask identity reload'
+    )
+    const requestCountBeforeMetaMaskConnection = desktop.requests.length
+    const firefoxMetaMaskSelection = await firefoxEvaluate(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.selectExplorerProvider()`
+    )
+    assert.equal(firefoxMetaMaskSelection.chainBefore, '0x1')
+    assert.equal(firefoxMetaMaskSelection.chainAfter, '0x2105')
+    assert.deepEqual(firefoxMetaMaskSelection.accounts, [
+      '0x0000000000000000000000000000000000000001'
+    ])
+    await firefoxWaitFor(
+      marionette,
+      `(window.wrappedJSObject || window).__wren.accountChanges.length === 1`,
+      'Firefox packaged MetaMask-identity account grant event'
+    )
+    assert.deepEqual(
+      await firefoxEvaluate(marionette, `(window.wrappedJSObject || window).__wren.chainChanges`),
+      ['0x2105']
+    )
+    assertExplorerConnectionRequests(
+      desktop.requests.slice(requestCountBeforeMetaMaskConnection),
+      top.origin,
+      'Firefox packaged MetaMask identity'
     )
     const firefoxMetaMaskDocument = await firefoxEvaluate(
       marionette,

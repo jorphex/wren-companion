@@ -227,6 +227,11 @@ export class MockDesktop {
     this.chainIds.set(origin, chainId)
   }
 
+  resetOrigin(origin, chainId = '0x1') {
+    this.authorizedOrigins.delete(origin)
+    this.chainIds.set(origin, chainId)
+  }
+
   identity(browser, role = 'control') {
     return [...this.connections].find(
       (connection) => connection.identity.browser === browser && connection.role === role
@@ -526,7 +531,10 @@ export class MockDesktop {
       role: connection.role,
       method: request.method,
       origin: request.__frameOrigin,
-      connecting: request.__extensionConnecting === true
+      connecting: request.__extensionConnecting === true,
+      ...(request.method === 'wallet_switchEthereumChain' && {
+        requestedChainId: request.params?.[0]?.chainId
+      })
     })
     if (connection.role === 'control' && request.__frameOrigin !== undefined) {
       return connection.peer.close(1008)
@@ -551,6 +559,20 @@ export class MockDesktop {
     else if (request.method === 'net_version') result = '1'
     else if (request.method === 'eth_chainId') {
       result = this.chainIds.get(request.__frameOrigin) || '0x1'
+    } else if (request.method === 'wallet_switchEthereumChain') {
+      const chainId = request.params?.[0]?.chainId
+      if (typeof chainId !== 'string' || !/^0x[0-9a-f]+$/u.test(chainId)) {
+        connection.peer.send({
+          jsonrpc: '2.0',
+          id: request.id,
+          error: { code: -32602, message: 'Invalid chain switch request' }
+        })
+        return
+      }
+      this.chainIds.set(request.__frameOrigin, chainId)
+      sendResult(null)
+      this.sendChainNotifications(request.__frameOrigin, chainId)
+      return
     } else if (request.method === 'eth_accounts') {
       result = this.authorizedOrigins.has(request.__frameOrigin)
         ? ['0x0000000000000000000000000000000000000001']
@@ -587,6 +609,20 @@ export class MockDesktop {
           jsonrpc: '2.0',
           method: 'eth_subscription',
           params: { subscription, result: accounts }
+        })
+      }
+    }
+  }
+
+  sendChainNotifications(origin, chainId) {
+    for (const connection of this.connections) {
+      if (connection.role !== 'page' || connection.state !== 'authenticated') continue
+      for (const [subscription, entry] of connection.subscriptions) {
+        if (entry.event !== 'chainChanged' || entry.origin !== origin) continue
+        connection.peer.send({
+          jsonrpc: '2.0',
+          method: 'eth_subscription',
+          params: { subscription, result: chainId }
         })
       }
     }
