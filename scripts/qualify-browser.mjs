@@ -1659,6 +1659,8 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       '-a',
       firefox,
       '--marionette',
+      '--remote-debugging-port',
+      '0',
       '-remote-allow-system-access',
       '--no-remote',
       '--profile',
