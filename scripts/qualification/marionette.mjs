@@ -30,9 +30,11 @@ export class MarionetteClient {
           throw new Error('Firefox returned an unsupported Marionette greeting')
         }
         const session = await this.request('WebDriver:NewSession', {
-          strictFileInteractability: true
+          strictFileInteractability: true,
+          webSocketUrl: true
         })
         this.sessionId = session.sessionId
+        this.capabilities = session.capabilities
         return this
       } catch (error) {
         lastError = error
