@@ -1,16 +1,12 @@
 # Wren Companion
 
-## Typography
+Wren Companion connects Ethereum apps in your browser to the
+[Wren](https://github.com/jorphex/wren) desktop wallet. The extension carries
+requests between each browser page and Wren. Wren stays in control of accounts,
+approvals, signing, and broadcasting.
 
-Companion bundles Recursive for UI text. Addresses, numbers, URLs, and other
-technical values use the browser monospace stack; Fira Code is not currently
-bundled or claimed as a runtime dependency. Adding it requires a licensed
-webfont and an explicit `@font-face` declaration.
-
-Wren Companion connects Ethereum and EVM dapps in the browser to the
-[Wren](https://github.com/jorphex/wren) desktop wallet. It injects an
-EIP-1193 provider and announces Wren through EIP-6963; Wren keeps account,
-approval, signing, and broadcast authority.
+For app developers, Companion provides an EIP-1193 wallet interface and
+announces Wren through EIP-6963.
 
 It is derived from the GPL-3.0 Frame extension and is not affiliated with or
 endorsed by Frame Labs. Internal `frame_*` labels and the `isFrame` flag remain
@@ -18,11 +14,10 @@ for compatibility. Public discovery uses Wren and `io.github.jorphex.wren`.
 
 ## Compatibility
 
-Companion 0.1.2 uses mutually authenticated protocol 3 and no longer sends its browser
-name or runtime extension UUID in the authentication hello. Pair it only with the minimum
-Wren desktop commit named in its `*-compatibility.json` artifact, or a later
-desktop release that retains protocol 3. Desktop releases that retain the
-protocol do not need a new Companion submission.
+Companion 0.1.2 uses pairing protocol 3. Use the minimum Wren desktop build
+named in the `*-compatibility.json` release file, or a later release that still
+supports protocol 3. A compatible Wren desktop update does not require a new
+Companion release.
 
 ## Build
 
@@ -44,9 +39,8 @@ npm run package:verify
 
 ## Install and pair
 
-Verify the release checksums, then extract the matching browser ZIP. Chrome and
-Firefox archives have different background manifests and must not be
-interchanged.
+Verify the release checksums, then extract the ZIP for your browser. Chrome and
+Firefox use different packages.
 
 - Chrome or Brave: open `chrome://extensions` or `brave://extensions`, enable
   Developer mode, select **Load unpacked**, and choose the extracted directory
@@ -56,17 +50,22 @@ interchanged.
   (or run `npm run build:firefox` and choose `dist-firefox/manifest.json` for a
   local build).
 
-On first connection, compare the six-digit code in Wren and the extension, then
-approve it in Wren. Wren can revoke a pairing and the extension can reset its
-credential. Pairing mutually authenticates that Wren installation and the
-extension's control/page key bundle. See [Security](SECURITY.md).
+On first connection, compare the six-digit code in Wren and the extension. If
+the codes match, approve the connection in Wren. You can revoke the connection
+in Wren or reset it in the extension. See [Security](SECURITY.md).
 
 ## Test a release candidate
 
-Run `npm run qualify:serve` to host the local, dependency-free qualification
-page on `127.0.0.1`. Follow Wren's [qualification
+Run `npm run qualify:serve` to host the local, dependency-free test page on
+`127.0.0.1`. Follow Wren's [qualification
 procedure](https://github.com/jorphex/wren/blob/main/QUALIFICATION.md) with
 disposable test accounts only.
 
-The companion has no telemetry or remote code. See [Privacy](PRIVACY.md), the
-[release procedure](RELEASE.md), and [store submission guide](STORE_SUBMISSION.md).
+The extension has no telemetry or remote code. See [Privacy](PRIVACY.md), the
+[release notes](release-notes/), [release procedure](RELEASE.md), and
+[store submission guide](STORE_SUBMISSION.md).
+
+## Typography
+
+Companion bundles Recursive for interface text. Technical values use the
+browser's monospace font. Fira Code is not currently bundled.

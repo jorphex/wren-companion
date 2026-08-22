@@ -1,7 +1,7 @@
 # Browser Store Submission
 
 Submit Wren Companion 0.1.2 independently of Wren desktop releases. Keep this
-store version for later desktop releases while mutually authenticated protocol 3 remains
+store version for later desktop releases while pairing protocol 3 remains
 compatible. Store credentials and publication are manual and external.
 
 ## Maintainer prerequisites
@@ -42,18 +42,17 @@ installable add-on.
 
 **Name:** Wren Companion
 
-**Summary:** Connect browser dapps to the Wren desktop wallet.
+**Summary:** Connect Ethereum apps in your browser to Wren on your desktop.
 
 **Description:**
 
-Wren Companion connects browser-based Ethereum and EVM dapps to the Wren wallet
-running on your desktop. Wren retains accounts, hardware signers, approvals, and
-transaction review. The companion injects an EIP-1193 provider, announces Wren
-through EIP-6963, and routes each page's requests to the local wallet. Before
-pairing, compare and approve a six-digit code in both interfaces.
+Wren Companion connects Ethereum apps in your browser to Wren on your desktop.
+Wren stays in control of accounts, hardware wallets, approvals, and transaction
+review. The extension carries each page's wallet requests to Wren on the same
+computer. To pair, compare the six-digit code shown in both apps.
 
-Wren desktop is required. This GPL-3.0 project is derived from the original
-Frame extension and is not affiliated with Frame Labs. The companion has no
+Wren desktop is required. This GPL-3.0 project is based on the original Frame
+extension and is not affiliated with Frame Labs. The extension has no
 telemetry, advertising, remote code, cloud account, or developer-operated data
 service.
 
@@ -73,6 +72,9 @@ the default language, and public distribution. The upstream listing is a
 separate item and cannot be updated from this publisher account.
 
 Privacy form answers:
+
+The extension uses these permissions only to connect the current site to local
+Wren and keep the popup state useful.
 
 - **Single purpose:** Connect browser dapps to the user's locally running Wren
   desktop wallet.
@@ -103,13 +105,13 @@ Use `src/icons/icon128.png` as the approved Character-flat store icon. It keeps
 the square artwork inside Chrome's 96-by-96 safe area on a transparent 128px
 canvas; regenerate it with `npm run store:icon`. The matching
 `store-assets/promo-440x280.png` and all three v14 PNGs in
-`store-assets/screenshots/` are ready for submission. They are composed from
-isolated captures of the actual Companion and Wren renderers. Pairing,
-connection, address, and transaction details come from disposable qualification
-fixtures with no authority or funds. Uniswap is shown only as a recognizable
-public dapp example; Wren is not affiliated with Uniswap. Do not publish
-historical Frame screenshots or reuse upstream-listing assets; they have no
-continuity with that listing.
+`store-assets/screenshots/` are ready for submission. They use reviewed 0.1.0
+renderer captures of the pairing, connected, and review views, which remain
+representative of 0.1.2. Pairing, connection, address, and transaction details
+come from disposable qualification fixtures with no authority or funds.
+Uniswap is shown only as a recognizable public app example; Wren is not
+affiliated with Uniswap. Do not publish historical Frame screenshots or reuse
+upstream-listing assets; they have no continuity with that listing.
 
 Screenshot regeneration:
 

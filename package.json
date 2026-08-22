@@ -6,7 +6,7 @@
     "type": "git",
     "url": "git+https://github.com/jorphex/wren-companion.git"
   },
-  "description": "Browser companion connecting EVM dapps to the Wren desktop wallet",
+  "description": "Connects Ethereum apps in your browser to the Wren desktop wallet",
   "main": "src",
   "scripts": {
     "setup:ci": "node scripts/check-toolchain.mjs && npm ci",

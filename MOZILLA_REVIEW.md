@@ -1,9 +1,13 @@
 # Mozilla Reviewer Build Instructions
 
-Wren Companion is derived from the GPL-3.0 `frame-labs/frame-extension` project.
-It adds mutually authenticated protocol-3 pairing, strict origin and document routing,
-EIP-6963 discovery, Manifest V3 support, and current browser and dependency
-maintenance.
+In plain terms, the extension sends wallet requests only to Wren on the same
+computer. The sections below provide the build, protocol, and data details
+needed for review.
+
+Wren Companion is derived from the GPL-3.0 `frame-labs/frame-extension`
+project. It adds mutually authenticated protocol-3 pairing, strict origin and
+document routing, EIP-6963 discovery, Manifest V3 support, and current browser
+and dependency maintenance.
 
 The submitted Firefox ZIP is generated with webpack and has matching reviewer
 source attached. It contains no obfuscation or remote executable code.
@@ -59,8 +63,8 @@ localhost refresh failure from replacing known networks with an unavailable
 screen. The cache contains no accounts, requests, transactions, page content, or
 private keys and is cleared when pairing is reset.
 
-The current candidate also binds popup identity changes to the exact top-level
-document. Chromium uses the browser's `documentId`; on Firefox versions that do
+Version 0.1.2 also binds popup identity changes to the exact top-level document.
+Chromium uses the browser's `documentId`; on Firefox versions that do
 not provide it to `scripting.executeScript`, a per-document random nonce supplies
 the same fail-closed identity. A navigation or same-origin document replacement
 invalidates the captured target before any write or reload.

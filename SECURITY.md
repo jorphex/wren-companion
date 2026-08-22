@@ -13,6 +13,9 @@ Companion is not a wallet or signer. It injects an EIP-1193 provider and routes
 requests to the separately installed Wren desktop wallet. Never enter a seed
 phrase, private key, or hardware-wallet PIN in the extension or a dapp page.
 
+For normal use, compare the six-digit code before you pair. Review every request
+in Wren. Keep your computer and browser profile secure.
+
 ## Security boundary
 
 - Browser APIs supply the requesting origin, tab, frame, and document; page

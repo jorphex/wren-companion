@@ -3,7 +3,7 @@
   "version": "0.1.2",
   "manifest_version": 3,
   "minimum_chrome_version": "116",
-  "description": "Connects browser-based Ethereum and EVM dapps to the Wren desktop wallet.",
+  "description": "Connects Ethereum apps in your browser to the Wren desktop wallet.",
   "homepage_url": "https://github.com/jorphex/wren-companion",
   "background": {
     "service_worker": "index.js"
