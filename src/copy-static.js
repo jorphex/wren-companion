@@ -15,6 +15,9 @@ mkdirSync(output, { recursive: true })
 for (const file of ['settings.html', 'icon.png']) {
   copyFileSync(path.join(__dirname, file), path.join(output, file))
 }
+for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.txt']) {
+  copyFileSync(path.join(projectRoot, file), path.join(output, file))
+}
 
 const manifestSource = readFileSync(path.join(__dirname, 'manifest.json'), 'utf8')
 const manifest = manifestSource.replace(

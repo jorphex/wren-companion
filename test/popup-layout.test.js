@@ -12,6 +12,11 @@ const injectionSource = fs.readFileSync(path.join(root, 'src', 'inject.js'), 'ut
 const documentActionsSource = fs.readFileSync(path.join(root, 'src', 'document-actions.js'), 'utf8')
 const networkRefreshSource = fs.readFileSync(path.join(root, 'src', 'network-refresh.js'), 'utf8')
 const settingsSource = fs.readFileSync(path.join(root, 'src', 'settings', 'index.js'), 'utf8')
+const settingsHtml = fs.readFileSync(path.join(root, 'src', 'settings.html'), 'utf8')
+const settingsTabSessionSource = fs.readFileSync(
+  path.join(root, 'src', 'settings-tab-session.js'),
+  'utf8'
+)
 const tabDocumentActionsSource = fs.readFileSync(
   path.join(root, 'src', 'tab-document-actions.mjs'),
   'utf8'
@@ -30,6 +35,14 @@ test('Companion shares Wren’s wallet canvas', () => {
   assert.match(
     settingsSource,
     /const SettingsScroll = styled\.main`[\s\S]*background:\s*transparent;/u
+  )
+})
+
+test('popup declares its language and preserves visible scroll affordance', () => {
+  assert.match(settingsHtml, /<html lang="en">/u)
+  assert.match(
+    settingsSource,
+    /const SettingsScroll = styled\.main`[\s\S]*scrollbar-width:\s*thin;/u
   )
 })
 
@@ -136,6 +149,12 @@ test('network and injection choices expose selection without toggle semantics', 
   assert.match(settingsSource, /event\.key === 'End'/u)
 })
 
+test('network switching restores keyboard focus after controls unlock', () => {
+  assert.match(settingsSource, /networkFocusPending/u)
+  assert.match(settingsSource, /restoreNetworkFocus/u)
+  assert.match(settingsSource, /document\.activeElement\?\.matches/u)
+})
+
 test('injection identity changes require an explicit reload acknowledgement', () => {
   assert.match(settingsSource, /Change wallet identity\?/u)
   assert.match(settingsSource, /may discard\s*unsaved work/u)
@@ -169,9 +188,9 @@ test('popup distinguishes tab confirmation and network refresh from real empty s
   assert.match(networkRefreshSource, /chainsStatus: 'error'/u)
   assert.match(backgroundSource, /chainsError: null/u)
   assert.match(backgroundSource, /tabSessionState\(pageSessions/u)
-  assert.match(backgroundSource, /preferredTabSession\(pageSessions/u)
-  assert.match(backgroundSource, /port\.frameTabId = tab\.id/u)
-  assert.match(backgroundSource, /port\.frameOrigin = origin/u)
+  assert.match(backgroundSource, /activeTabSession\(chrome, port, pageSessions\)/u)
+  assert.match(settingsTabSessionSource, /port\.frameTabId = tab\.id/u)
+  assert.match(settingsTabSessionSource, /port\.frameOrigin = origin/u)
   assert.match(injectionSource, /if \(window\.top === window\) connect\(\)/u)
   const controlClose = backgroundSource.match(/onClose: \(\) => \{([\s\S]*?)\n {2}\}\n\}\)/u)?.[1]
   assert.ok(controlClose)

@@ -53,7 +53,8 @@ interchanged.
   (or `dist/` for a local build).
 - Firefox: open `about:debugging#/runtime/this-firefox`, select **Load
   Temporary Add-on**, and choose `manifest.json` in the extracted directory
-  (or `dist/manifest.json`).
+  (or run `npm run build:firefox` and choose `dist-firefox/manifest.json` for a
+  local build).
 
 On first connection, compare the six-digit code in Wren and the extension, then
 approve it in Wren. Wren can revoke a pairing and the extension can reset its

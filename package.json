@@ -38,7 +38,7 @@
     "email": "jorphex@users.noreply.github.com",
     "url": "https://github.com/jorphex/wren-companion"
   },
-  "license": "GPL-3.0",
+  "license": "GPL-3.0-only",
   "engines": {
     "node": "24.18.1",
     "npm": "11.12.0"

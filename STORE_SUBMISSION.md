@@ -68,7 +68,7 @@ https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md
 
 ## Chrome Web Store
 
-Upload the Chrome ZIP as a new item. Select `Workflow & Planning`, English as
+Upload the Chrome ZIP as a new item. Select `Tools`, English as
 the default language, and public distribution. The upstream listing is a
 separate item and cannot be updated from this publisher account.
 
@@ -78,8 +78,10 @@ Privacy form answers:
   desktop wallet.
 - **alarms:** Maintains and refreshes localhost Wren connection state while the
   Manifest V3 service worker is suspended and resumed.
-- **scripting:** Reads or changes the per-site legacy-provider preference only
-  when the user explicitly toggles it in the extension popup.
+- **scripting:** When the popup opens, reads the current site's per-site
+  legacy-provider preference and captures its exact document identity. It also
+  writes the preference and requests an acknowledged reload when the user
+  explicitly changes the identity.
 - **storage:** Retains the last network catalog successfully read from local Wren
   so a background-worker restart or transient localhost refresh does not erase
   known networks. The cache contains no accounts, requests, transactions, page
@@ -89,11 +91,13 @@ Privacy form answers:
   isolated by browser-provided tab, frame, document, and origin identity.
 - **Remote code:** No. All executable code is bundled in the extension.
 - **Data handling:** Select financial and payment information, authentication
-  information, web history, and website content. The extension handles only the
-  dapp origin, local pairing credential, and wallet RPC messages needed for its
-  single purpose. It transmits them only to Wren on `127.0.0.1`; the maintainer
-  does not collect or receive them. Certify all applicable limited-use
-  statements. The matching public Limited Use disclosure is in `PRIVACY.md`.
+  information, web history, and website content. Browser APIs transiently
+  provide the requesting document's full URL so Companion can bind work to the
+  exact document; only its canonical origin, the local pairing identity, and
+  wallet RPC messages needed for the single purpose are transmitted to Wren on
+  `127.0.0.1`. The maintainer does not collect or receive them. Certify all
+  applicable limited-use statements. The matching public Limited Use disclosure
+  is in `PRIVACY.md`.
 
 Use `src/icons/icon128.png` as the approved Character-flat store icon. It keeps
 the square artwork inside Chrome's 96-by-96 safe area on a transparent 128px

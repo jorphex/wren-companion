@@ -29,22 +29,33 @@ jobs:
       - run: npm install --global npm@11.12.0
       - run: npm run setup:ci
       - run: npm run audit:release
-      - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+      - id: chrome-current
+        uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
         with:
           chrome-version: 151.0.7922.77
-      - uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
+      - id: firefox-current
+        uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
         with:
           firefox-version: 153.0.3
       - name: Qualify isolated Chrome and Firefox extensions
         run: npm run qualify:browser
-      - name: Install Firefox 151 document-identity compatibility boundary
-        id: firefox-151
+      - name: Install Chrome 116 compatibility boundary
+        id: chrome-116
+        uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+        with:
+          chrome-version: 116.0.5845.96
+      - name: Qualify minimum Chrome version
+        env:
+          WREN_CHROME_BINARY: ${{ steps.chrome-116.outputs.chrome-path }}
+        run: npm run qualify:browser -- --browser=chrome
+      - name: Install Firefox 142 document-identity compatibility boundary
+        id: firefox-142
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
         with:
-          firefox-version: 151.0.4
-      - name: Qualify Firefox missing-documentId fallback
+          firefox-version: 142.0
+      - name: Qualify minimum Firefox version and missing-documentId fallback
         env:
-          WREN_FIREFOX_BINARY: ${{ steps.firefox-151.outputs.firefox-path }}
+          WREN_FIREFOX_BINARY: ${{ steps.firefox-142.outputs.firefox-path }}
           WREN_FIREFOX_REQUIRE_NONCE_FALLBACK: '1'
         run: npm run qualify:browser -- --browser=firefox
       - name: Verify release package prerequisites
@@ -55,6 +66,11 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - run: npm run package:browsers
       - run: npm run package:verify
+      - name: Qualify packaged Chrome and Firefox extensions
+        env:
+          WREN_CHROME_BINARY: ${{ steps.chrome-current.outputs.chrome-path }}
+          WREN_FIREFOX_BINARY: ${{ steps.firefox-current.outputs.firefox-path }}
+        run: npm run qualify:artifacts
       - name: Upload qualified companion artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

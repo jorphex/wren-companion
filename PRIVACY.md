@@ -8,11 +8,13 @@ developer-operated service, or cloud account.
 
 ## What the companion handles
 
-The companion processes the active page origin and wallet JSON-RPC messages,
-which can contain account addresses, chain identifiers, messages, and proposed
-transactions. It routes them only between the requesting browser document and
-Wren at `ws://127.0.0.1:1248`; the extension does not send them to the
-maintainer or another third party.
+The companion processes wallet JSON-RPC messages, which can contain account
+addresses, chain identifiers, messages, and proposed transactions. Browser APIs
+also provide the requesting document's full URL. Companion handles that URL
+locally and transiently to bind the request or popup action to the exact browser
+document, then derives the canonical origin that it routes with wallet messages
+to Wren at `ws://127.0.0.1:1248`. It does not send the URL path, query, or
+fragment to Wren, the maintainer, or another third party.
 
 For browser-store disclosure purposes, this local routing can involve financial
 and payment information, authentication information, browsing activity, and
@@ -31,11 +33,11 @@ local connection, are not wallet private keys, and cannot sign blockchain
 transactions. They remain until the user resets pairing or removes the extension.
 
 The companion also stores Wren's last successfully read network catalog in browser
-extension storage. This cache contains network metadata such as chain identifiers,
-names, currency and explorer details, and connection availability. It keeps the
-popup useful when a Manifest V3 background worker restarts or a localhost refresh
-briefly fails. It contains no account, transaction, private-key, or page-content
-data and is cleared when pairing is reset or the extension is removed.
+extension storage. This cache contains chain identifiers, names, connection
+availability, and testnet labels. It keeps the popup useful when a Manifest V3
+background worker restarts or a localhost refresh briefly fails. It contains no
+account, transaction, private-key, or page-content data and is cleared when pairing
+is reset or the extension is removed.
 
 Companion does not intentionally send or store the browser name or the browser's
 runtime extension UUID. Firefox and Chromium attach an extension Origin header to
@@ -50,10 +52,11 @@ account and chain state, and pending messages otherwise remain in memory.
 
 HTTP and HTTPS access lets Companion inject the provider at document start and
 route requests on sites the user visits. It does not scrape arbitrary page
-content or browsing history. `scripting` is used only when the user changes the
-per-site legacy-provider setting, `storage` retains the local network catalog and
-pairing-independent popup continuity described above, and `alarms` keeps the local
-Wren connection state current.
+content or browsing history. When the popup opens, `scripting` reads the current
+site's legacy-provider preference and captures exact-document identity; it also
+supports a user-requested preference change and acknowledged reload. `storage`
+retains the local network catalog and pairing-independent popup continuity
+described above, and `alarms` keeps the local Wren connection state current.
 
 ## Collection and sharing
 
@@ -62,6 +65,9 @@ above occurs locally on the user's device, and the extension does not execute
 remotely hosted code.
 
 ## Chrome Web Store Limited Use
+
+The use of information received from Google APIs will adhere to the Chrome Web
+Store User Data Policy, including the Limited Use requirements.
 
 Wren Companion's use of information received from Chrome APIs is limited to
 providing its single purpose: connecting browser dapps to the user's locally

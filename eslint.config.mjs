@@ -80,6 +80,7 @@ export default [
       'src/network-refresh.js',
       'src/page-session-capacity.js',
       'src/page-connection.js',
+      'src/settings-tab-session.js',
       'src/timers.js'
     ],
     languageOptions: {

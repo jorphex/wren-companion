@@ -82,6 +82,13 @@ function firefoxExecutable() {
   return process.env.WREN_FIREFOX_BINARY || executable(['firefox'])
 }
 
+function chromeExecutable() {
+  return (
+    process.env.WREN_CHROME_BINARY ||
+    executable(['chrome', 'google-chrome', 'google-chrome-stable', 'chromium'])
+  )
+}
+
 function run(command, args, environment = {}) {
   const result = spawnSync(command, args, {
     cwd: projectRoot,
@@ -822,7 +829,7 @@ async function openChromePopup(cdp, workerSession, extensionId, label) {
 async function qualifyChrome(root, extension, desktop, top, frame) {
   const profile = path.join(root, 'chrome-profile')
   await mkdir(profile)
-  const chrome = executable(['chrome', 'google-chrome', 'google-chrome-stable', 'chromium'])
+  const chrome = chromeExecutable()
   const child = spawn(
     chrome,
     [
@@ -836,10 +843,10 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
       '--disable-sync',
       '--metrics-recording-only',
       '--no-first-run',
+      '--window-size=1280,800',
       ...(qualificationExportDirectory
         ? [
             '--force-device-scale-factor=1',
-            '--window-size=1280,800',
             '--host-resolver-rules=MAP dapp.wren-demo.local 127.0.0.1, MAP frame.wren-demo.local 127.0.0.1',
             ...(storeDappUrl ? ['--disable-http2', '--disable-quic'] : ['--no-proxy-server'])
           ]
@@ -966,6 +973,16 @@ async function qualifyChrome(root, extension, desktop, top, frame) {
     await settings.waitFor(buttonExpression)
     await settings.waitFor(`document.querySelectorAll('[data-chain-id]').length === 19`)
     await qualifyChromePopupLayout(settings, 'connected')
+    await settings.evaluate(
+      `(() => {
+        const selected = document.querySelector('[data-chain-id="0x2105"]');
+        selected.focus();
+        selected.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+      })()`
+    )
+    await settings.waitFor(
+      `document.activeElement?.dataset?.chainId === '0x1' && document.activeElement.getAttribute('aria-checked') === 'true'`
+    )
     await settings.evaluate(
       `document.querySelector('[data-chain-id="0x12"]').scrollIntoView({ block: 'nearest' })`
     )
@@ -1635,7 +1652,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
     await firefoxWaitFor(
       marionette,
-      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren !== true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren !== true && (window.wrappedJSObject || window).__wren?.provider?.isConnected?.() === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       'Firefox identity switch reload'
     )
     const requestCountBeforeMetaMaskConnection = desktop.requests.length
@@ -1717,7 +1734,7 @@ async function qualifyFirefox(root, extension, desktop, top, frame) {
     await marionette.request('WebDriver:SwitchToWindow', { handle: topHandle })
     await firefoxWaitFor(
       marionette,
-      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider?.isWren === true && (window.wrappedJSObject || window).__wren?.provider?.isConnected?.() === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
       'Firefox Wren identity restore reload'
     )
     const restoredPopupWindow = await marionette.request('WebDriver:NewWindow', { type: 'tab' })
@@ -1880,6 +1897,22 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
       true,
       'Firefox packaged dapp tab remains active behind the action popup'
     )
+    await firefoxActionPopupEvaluate(
+      marionette,
+      installed.value,
+      `(() => {
+        const selected = document.querySelector('[data-chain-id="0x2105"]');
+        selected.focus();
+        selected.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+        return true;
+      })()`
+    )
+    await firefoxWaitForActionPopup(
+      marionette,
+      installed.value,
+      `document.activeElement?.dataset?.chainId === '0x1' && document.activeElement.getAttribute('aria-checked') === 'true'`,
+      'Firefox packaged network switch restores keyboard focus'
+    )
     desktop.resetOrigin(top.origin)
     await firefoxActionPopupEvaluate(
       marionette,
@@ -1899,7 +1932,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     )
     await firefoxWaitFor(
       marionette,
-      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxWrenDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && (window.wrappedJSObject || window).__wren?.provider?.isConnected?.() === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === true`,
       'Firefox packaged action-popup MetaMask identity reload'
     )
     const requestCountBeforeMetaMaskConnection = desktop.requests.length
@@ -1960,7 +1993,7 @@ async function qualifyFirefoxPackagedCore(root, extension, desktop, top, frame) 
     )
     await firefoxWaitFor(
       marionette,
-      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
+      `document.readyState === 'complete' && (window.wrappedJSObject || window).__wren?.loadToken !== ${JSON.stringify(firefoxMetaMaskDocument)} && (window.wrappedJSObject || window).__wren?.provider === (window.wrappedJSObject || window).ethereum && (window.wrappedJSObject || window).__wren?.provider?.isConnected?.() === true && JSON.parse(localStorage.getItem('__frameAppearAsMM__')) === false`,
       'Firefox packaged action-popup Wren identity reload'
     )
     console.log(

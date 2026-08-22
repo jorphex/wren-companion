@@ -111,11 +111,8 @@ if (
 }
 
 const sourcePrefix = `wren-companion-${version}-source/`
-const sourceEntries = execFileSync(
-  'unzip',
-  ['-Z1', join(artifacts, `wren-companion-${version}-source.zip`)],
-  { encoding: 'utf8' }
-)
+const sourceArchive = join(artifacts, `wren-companion-${version}-source.zip`)
+const sourceEntries = execFileSync('unzip', ['-Z1', sourceArchive], { encoding: 'utf8' })
   .trim()
   .split('\n')
 if (
@@ -127,6 +124,15 @@ if (
   )
 ) {
   throw new Error('Firefox reviewer source is incomplete or contains generated content')
+}
+
+const regeneratedSource = execFileSync(
+  'git',
+  ['archive', '--format=zip', `--prefix=${sourcePrefix}`, 'HEAD'],
+  { cwd: root, maxBuffer: 128 * 1024 * 1024 }
+)
+if (!(await readFile(sourceArchive)).equals(regeneratedSource)) {
+  throw new Error('Firefox reviewer source differs from a fresh archive of the release commit')
 }
 
 console.log(`Verified ${actual.length} companion release artifacts`)

@@ -59,6 +59,18 @@ localhost refresh failure from replacing known networks with an unavailable
 screen. The cache contains no accounts, requests, transactions, page content, or
 private keys and is cleared when pairing is reset.
 
+The current candidate also binds popup identity changes to the exact top-level
+document. Chromium uses the browser's `documentId`; on Firefox versions that do
+not provide it to `scripting.executeScript`, a per-document random nonce supplies
+the same fail-closed identity. A navigation or same-origin document replacement
+invalidates the captured target before any write or reload.
+
+Explorer qualification covers dapps that request their required chain before
+account access, including BaseScan's Base-chain flow, in both Wren and legacy
+MetaMask identity modes. The chain switch, chain confirmation, account request,
+and resulting events all travel through the same authenticated, origin-bound page
+channel.
+
 ## Build environment
 
 - Release build: Ubuntu/Pop!_OS 22.04 x64
@@ -106,5 +118,8 @@ official npm registry during `npm ci`. Upstream source repositories:
 - Babel runtime: https://github.com/babel/babel/tree/main/packages/babel-runtime
 - events: https://github.com/Gozala/events
 - React and React DOM: https://github.com/facebook/react
+- React Scheduler: https://github.com/facebook/react/tree/main/packages/scheduler
 - react-restore: https://github.com/floating/restore
 - styled-components: https://github.com/styled-components/styled-components
+- Emotion property validation and memoization: https://github.com/emotion-js/emotion
+- Stylis: https://github.com/thysultan/stylis.js

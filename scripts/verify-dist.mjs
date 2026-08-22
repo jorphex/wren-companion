@@ -45,6 +45,8 @@ for (const file of extensionArtifactFiles.filter(
 
 const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'))
 const packageFile = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const expectedExtensionCsp =
+  "script-src 'self'; object-src 'self'; connect-src 'self' ws://127.0.0.1:1248"
 
 if (manifest.manifest_version !== 3) throw new Error('Extension artifact must use Manifest V3')
 if (manifest.version !== packageFile.version)
@@ -94,8 +96,8 @@ if (
 if (manifest.icons?.['128'] !== 'icons/icon128.png') {
   throw new Error('Chrome Web Store icon is missing')
 }
-if (!manifest.content_security_policy?.extension_pages?.includes('ws://127.0.0.1:1248')) {
-  throw new Error('Extension CSP must restrict Wren transport to loopback')
+if (manifest.content_security_policy?.extension_pages !== expectedExtensionCsp) {
+  throw new Error('Extension CSP differs from the reviewed loopback-only policy')
 }
 if (
   manifest.browser_specific_settings?.gecko?.id !== '{645ed7c6-d25f-4256-b29a-10e1e0633cf5}' ||
@@ -131,9 +133,19 @@ for (const removedAuthMetadata of [
   }
 }
 
-const settingsBundle = await readFile(join(root, 'settings.js'), 'utf8')
-if (/\b(?:eval|Function)\s*\(/u.test(settingsBundle)) {
-  throw new Error('Settings bundle contains dynamic code evaluation')
+for (const file of ['frame.js', 'index.js', 'inject.js', 'settings.js']) {
+  const bundle = await readFile(join(root, file), 'utf8')
+  if (/\b(?:eval|Function)\s*\(/u.test(bundle)) {
+    throw new Error(`${file} contains dynamic code evaluation`)
+  }
+}
+
+for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.txt']) {
+  const [source, packaged] = await Promise.all([
+    readFile(new URL(`../${file}`, import.meta.url)),
+    readFile(join(root, file))
+  ])
+  if (!source.equals(packaged)) throw new Error(`${file} differs from its reviewed source`)
 }
 
 console.log(`Verified ${files.length} extension artifact files`)

@@ -69,10 +69,16 @@ const SettingsScroll = styled.main`
   box-sizing: border-box;
   max-height: 600px;
   background: transparent;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wren-border-default) transparent;
 
   &::-webkit-scrollbar {
-    display: none;
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: var(--wren-border-default);
   }
 
   > * {
@@ -648,6 +654,7 @@ class _Settings extends React.Component {
   }
 
   chainSwitchRequest = 0
+  networkFocusPending = false
   identityCancelRef = React.createRef()
   identityCurrentRef = React.createRef()
   identityDialogRef = React.createRef()
@@ -661,17 +668,27 @@ class _Settings extends React.Component {
 
     const result = this.store('chainSwitchResult')
     if (result?.requestId === chainSwitch.requestId) {
-      this.setState({
-        chainSwitch: result.switched
-          ? { status: 'idle' }
-          : {
-              status: result.declined ? 'rejected' : 'failed',
-              previousChain: chainSwitch.previousChain,
-              targetChain: chainSwitch.targetChain
-            }
-      })
+      const focusChain = result.switched ? chainSwitch.targetChain : chainSwitch.previousChain
+      this.setState(
+        {
+          chainSwitch: result.switched
+            ? { status: 'idle' }
+            : {
+                status: result.declined ? 'rejected' : 'failed',
+                previousChain: chainSwitch.previousChain,
+                targetChain: chainSwitch.targetChain
+              }
+        },
+        () => this.restoreNetworkFocus(focusChain)
+      )
       return
     }
+  }
+
+  restoreNetworkFocus = (chainId) => {
+    if (!this.networkFocusPending) return
+    this.networkFocusPending = false
+    document.querySelector(`[data-chain-id="${chainId}"]`)?.focus()
   }
 
   requestChainSwitch = (targetChain) => {
@@ -679,12 +696,15 @@ class _Settings extends React.Component {
 
     const previousChain = this.store('currentChain')
     const requestId = `popup-${Date.now()}-${(this.chainSwitchRequest += 1)}`
+    this.networkFocusPending = document.activeElement?.matches?.('[data-chain-id]') === true
     this.setState({
       chainSwitch: { status: 'pending', previousChain, requestId, targetChain }
     })
 
     if (!postFrameMessage({ type: 'switchChain', chainId: targetChain, requestId })) {
-      this.setState({ chainSwitch: { status: 'failed', previousChain, targetChain } })
+      this.setState({ chainSwitch: { status: 'failed', previousChain, targetChain } }, () =>
+        this.restoreNetworkFocus(previousChain)
+      )
     }
   }
 
@@ -1093,9 +1113,8 @@ class _Settings extends React.Component {
   }
 
   networkRefreshWarning(interactionLocked) {
-    const error = this.store('chainsError')
     return (
-      <NetworkRefreshWarning role="status" title={error?.message || undefined}>
+      <NetworkRefreshWarning role="status">
         <span>Wren could not refresh its available networks.</span>
         <button
           type="button"
@@ -1135,6 +1154,7 @@ class _Settings extends React.Component {
         type="button"
         $connected={isConnected}
         disabled={!isConnected || interactionLocked}
+        aria-label={isConnected ? 'Desktop connected. Open Wren desktop.' : undefined}
         aria-live="polite"
         onClick={() => postFrameMessage({ type: 'summon' })}
       >
