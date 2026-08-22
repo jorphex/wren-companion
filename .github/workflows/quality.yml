@@ -52,7 +52,7 @@ jobs:
         id: firefox-142
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1.7.2
         with:
-          firefox-version: 142.0
+          firefox-version: '142.0'
       - name: Qualify minimum Firefox version and missing-documentId fallback
         env:
           WREN_FIREFOX_BINARY: ${{ steps.firefox-142.outputs.firefox-path }}
