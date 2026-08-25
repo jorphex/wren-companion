@@ -67,6 +67,9 @@ https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md
 
 ## Chrome Web Store
 
+**Public listing:**
+https://chromewebstore.google.com/detail/wren-companion/ifimccfajfbgligbhcgfapdagpnfkbhn
+
 Upload the Chrome ZIP as a new item. Select `Tools`, English as
 the default language, and public distribution. The upstream listing is a
 separate item and cannot be updated from this publisher account.
@@ -154,8 +157,9 @@ Reviewer test steps:
 4. No account or paid service is required; disposable accounts are recommended.
 
 Choose deferred publishing so the approved listing can be checked before it is
-public. Chrome allows up to 30 days to publish an approved staged submission;
-do not submit until the desktop release and support contact are ready.
+public. After approval, check the listing and package version, then publish
+within 30 days. When the listing is live, install it in a clean browser profile
+and repeat the reviewer tests above.
 
 ## Mozilla Add-ons
 

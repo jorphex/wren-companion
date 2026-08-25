@@ -39,12 +39,15 @@ npm run package:verify
 
 ## Install and pair
 
-Verify the release checksums, then extract the ZIP for your browser. Chrome and
-Firefox use different packages.
+Chrome and Brave users can install
+[Wren Companion from the Chrome Web Store](https://chromewebstore.google.com/detail/wren-companion/ifimccfajfbgligbhcgfapdagpnfkbhn).
 
-- Chrome or Brave: open `chrome://extensions` or `brave://extensions`, enable
-  Developer mode, select **Load unpacked**, and choose the extracted directory
-  (or `dist/` for a local build).
+For local testing, verify the release checksums, then extract the ZIP for your
+browser. Chrome and Firefox use different packages.
+
+- Chrome or Brave local build: open `chrome://extensions` or
+  `brave://extensions`, enable Developer mode, select **Load unpacked**, and
+  choose the extracted directory (or `dist/` for a local build).
 - Firefox: open `about:debugging#/runtime/this-firefox`, select **Load
   Temporary Add-on**, and choose `manifest.json` in the extracted directory
   (or run `npm run build:firefox` and choose `dist-firefox/manifest.json` for a
