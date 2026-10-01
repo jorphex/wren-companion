@@ -1,12 +1,11 @@
-# Companion icon treatment
+# Companion Icons
 
-`wren-mark.svg` is byte-identical to Wren desktop's approved Character-flat
-vector master. `src/icon.png` remains byte-identical to the canonical 512 px
-desktop icon.
+`wren-mark.svg` matches Wren's approved Character-flat vector master.
+`src/icon.png` matches the canonical 512px desktop icon.
 
-Browser toolbar and extension-manager icons keep the same tile but scale the
-bird 1.12× around the canvas center. This raises its horizontal occupancy from
-about 69% to 78%, matching the optical size of neighboring browser extensions
-without changing the desktop mark. The 16 px state icons use the hinted
-silhouette; connected icons use the green-tinted tile, and disconnected icons
-use the muted monochrome treatment.
+Toolbar and extension-manager icons scale the bird 1.12× within the same tile.
+Its width grows from about 69% to 78% of the canvas for a clear toolbar size.
+The desktop mark stays unchanged.
+
+The 16px icons use a hinted silhouette. Connected icons have a green tile;
+disconnected icons use muted monochrome.

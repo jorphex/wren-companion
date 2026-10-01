@@ -1,187 +1,122 @@
 # Browser Store Submission
 
-Submit Wren Companion 0.1.2 independently of Wren desktop releases. Keep this
-store version for later desktop releases while pairing protocol 3 remains
-compatible. Store credentials and publication are manual and external.
+Submit Companion 0.1.3 as an update to the existing Chrome and Firefox listings.
+It adds connection retry fixes for Wren 0.1.11. Pairing protocol 3 and
+permissions are unchanged.
 
-## Maintainer prerequisites
+## Prepare
 
-Before uploading anything:
+- Stage or publish the desktop build named in `compatibility.json`, or a later
+  compatible build, so reviewers can install Wren.
+- Use the existing store accounts, with verified contact details and Chrome
+  two-step verification.
+- Create the `v0.1.3` draft from a clean, reviewed commit. Use one verified
+  artifact set throughout submission.
+- After the tag exists, use its privacy-policy link below.
 
-- Publish or stage a Wren desktop build at or after the exact minimum commit in
-  `compatibility.json` so reviewers can install the required local application.
-- Register the Chrome Web Store publisher account, pay Google's one-time fee,
-  enable two-step verification, choose the durable publisher name, and verify
-  the monitored contact email.
-- Sign in to Firefox Add-ons Developer Hub, accept its current agreements, and
-  confirm the account email.
-- Create the Companion `v0.1.2` draft from the exact candidate commit. Use its
-  checksums to identify the files below; do not rebuild during form entry.
-- Use the immutable tagged privacy-policy URL
-  `https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md` after the
-  tag exists.
-
-## Qualified files
-
-From the exact clean release commit, run:
+Build and verify with:
 
 ```bash
 npm run package:browsers
 npm run package:verify
 ```
 
-- Chrome: `artifacts/wren-companion-0.1.2-chrome.zip`
-- Firefox: `artifacts/wren-companion-0.1.2-firefox.zip`
-- Firefox reviewer source: `artifacts/wren-companion-0.1.2-source.zip`
-- Checksums: `artifacts/SHA256SUMS`
+| Purpose                 | File                                         |
+| ----------------------- | -------------------------------------------- |
+| Chrome                  | `artifacts/wren-companion-0.1.3-chrome.zip`  |
+| Firefox                 | `artifacts/wren-companion-0.1.3-firefox.zip` |
+| Mozilla reviewer source | `artifacts/wren-companion-0.1.3-source.zip`  |
+| Checksums               | `artifacts/SHA256SUMS`                       |
 
-Do not interchange browser ZIPs or upload the reviewer-source ZIP as an
-installable add-on.
+The source ZIP is for review. Install the ZIP made for each browser.
 
-## Shared listing copy
+## Listing copy
 
 **Name:** Wren Companion
 
 **Summary:** Connect Ethereum apps in your browser to Wren on your desktop.
 
+**Update summary:** Improved connection retries. Late replies no longer
+interrupt a new attempt or change its network. Permissions are unchanged.
+
 **Description:**
 
-Wren Companion connects Ethereum apps in your browser to Wren on your desktop.
-Wren stays in control of accounts, hardware wallets, approvals, and transaction
-review. The extension carries each page's wallet requests to Wren on the same
-computer. To pair, compare the six-digit code shown in both apps.
+Wren Companion connects Ethereum apps in your browser to Wren on the same
+computer. Wren handles accounts, hardware wallets, approvals, and transaction
+review. To pair, compare the six-digit code in both apps.
 
-Wren desktop is required. This GPL-3.0 project is based on the original Frame
-extension and is not affiliated with Frame Labs. The extension has no
-telemetry, advertising, remote code, cloud account, or developer-operated data
-service.
+Wren desktop is required. Companion is based on the GPL-3.0 Frame extension
+and is maintained separately from Frame Labs. It has no telemetry,
+advertising, cloud account, developer-operated service, or remote executable code.
 
 **Homepage:** https://github.com/jorphex/wren-companion
 
 **Support:** https://github.com/jorphex/wren-companion/issues
 
-**Privacy policy:**
-https://github.com/jorphex/wren-companion/blob/v0.1.2/PRIVACY.md
+**Privacy:** https://github.com/jorphex/wren-companion/blob/v0.1.3/PRIVACY.md
 
 **License:** GNU General Public License v3.0 only
 
+Use `src/icons/icon128.png`, `store-assets/promo-440x280.png`, and the three v14
+listing screenshots. See [Store assets](store-assets/README.md) for capture
+sources and regeneration steps.
+
 ## Chrome Web Store
 
-**Public listing:**
-https://chromewebstore.google.com/detail/wren-companion/ifimccfajfbgligbhcgfapdagpnfkbhn
+Upload the Chrome ZIP as a new version of the
+[existing listing](https://chromewebstore.google.com/detail/wren-companion/ifimccfajfbgligbhcgfapdagpnfkbhn).
+Keep the current category and language.
 
-Upload the Chrome ZIP as a new item. Select `Tools`, English as
-the default language, and public distribution. The upstream listing is a
-separate item and cannot be updated from this publisher account.
+Use these privacy-form answers:
 
-Privacy form answers:
-
-The extension uses these permissions only to connect the current site to local
-Wren and keep the popup state useful.
-
-- **Single purpose:** Connect browser dapps to the user's locally running Wren
-  desktop wallet.
-- **alarms:** Maintains and refreshes localhost Wren connection state while the
-  Manifest V3 service worker is suspended and resumed.
-- **scripting:** When the popup opens, reads the current site's per-site
-  legacy-provider preference and captures its exact document identity. It also
-  writes the preference and requests an acknowledged reload when the user
-  explicitly changes the identity.
-- **storage:** Retains the last network catalog successfully read from local Wren
-  so a background-worker restart or transient localhost refresh does not erase
-  known networks. The cache contains no accounts, requests, transactions, page
-  content, or private keys and is cleared when pairing is reset.
-- **Host access:** Injects the EIP-1193 provider at document start on HTTP and
-  HTTPS dapp pages. Sites cannot be predicted in advance; requests remain
-  isolated by browser-provided tab, frame, document, and origin identity.
-- **Remote code:** No. All executable code is bundled in the extension.
+- **Single purpose:** Connect browser Ethereum apps to local Wren.
+- **alarms:** Refresh local connection state when the background worker sleeps
+  or resumes.
+- **scripting:** Read or change the current site's provider setting. Bind the
+  action and acknowledged reload to that exact document.
+- **storage:** Keep the last network list from Wren through background restarts
+  and brief disconnects. The list has no accounts, transactions, page content,
+  or private keys. Pairing reset clears it.
+- **Host access:** Offer the EIP-1193 provider at document start on HTTP and
+  HTTPS sites. Route requests by browser-supplied tab, frame, document, and origin.
+- **Remote code:** None; executable code is bundled.
 - **Data handling:** Select financial and payment information, authentication
-  information, web history, and website content. Browser APIs transiently
-  provide the requesting document's full URL so Companion can bind work to the
-  exact document; only its canonical origin, the local pairing identity, and
-  wallet RPC messages needed for the single purpose are transmitted to Wren on
-  `127.0.0.1`. The maintainer does not collect or receive them. Certify all
-  applicable limited-use statements. The matching public Limited Use disclosure
-  is in `PRIVACY.md`.
+  information, web history, and website content. The full page URL is used
+  locally to identify the document. Only its origin, local pairing identity,
+  and wallet messages go to Wren on `127.0.0.1`. The maintainer receives none
+  of this data. Confirm the Limited Use statements in [Privacy](PRIVACY.md).
 
-Use `src/icons/icon128.png` as the approved Character-flat store icon. It keeps
-the square artwork inside Chrome's 96-by-96 safe area on a transparent 128px
-canvas; regenerate it with `npm run store:icon`. The matching
-`store-assets/promo-440x280.png` and all three v14 PNGs in
-`store-assets/screenshots/` are ready for submission. They use reviewed 0.1.0
-renderer captures of the pairing, connected, and review views, which remain
-representative of 0.1.2. Pairing, connection, address, and transaction details
-come from disposable qualification fixtures with no authority or funds.
-Uniswap is shown only as a recognizable public app example; Wren is not
-affiliated with Uniswap. Do not publish historical Frame screenshots or reuse
-upstream-listing assets; they have no continuity with that listing.
+Choose deferred publishing. Check the approved listing and package version,
+then publish within 30 days. Install the live version in a clean profile and
+repeat the reviewer steps below.
 
-Screenshot regeneration:
+## Firefox Add-ons
 
-- Generate the pairing and connected Companion source captures in a private
-  mode-0700 directory:
+Upload the Firefox ZIP as a new version of the
+[existing add-on](https://addons.mozilla.org/en-US/firefox/addon/wren-companion/).
+Keep its add-on ID and desktop Firefox target. State that Wren desktop is required.
 
-  ```sh
-  WREN_COMPANION_QUALIFICATION_EXPORT=<directory> \
-    WREN_COMPANION_STORE_DAPP_URL=https://app.uniswap.org/ \
-    npm run qualify:browser -- --browser=chrome
-  ```
+Choose **Yes** when asked for source and attach the matching reviewer-source ZIP.
+Use GPL-3.0-only, the listing and privacy text above, and the build instructions
+and third-party source links in [Mozilla review](MOZILLA_REVIEW.md).
+Include the reviewer steps below in Notes for Reviewers.
 
-  The optional dapp URL is restricted to this reviewed HTTPS example and is
-  used only after the normal local qualification assertions pass.
+Keep these required data categories: financial and payment information,
+authentication information, browsing activity, and website content. They cover
+local routing to Wren. Do not select `technicalAndInteraction`; Companion has
+no such analytics or feature.
 
-- Read the disposable six-digit code from the Companion export, then generate
-  matching Wren source captures through Wren's isolated Xvfb UI qualification
-  with `WREN_UI_QUALIFICATION_PAIRING_CODE=<six digits>` and scenarios
-  `tray-native-pairing-full-1` and
-  `tray-transaction-method-verified-full-1.5`.
-- Refresh `store-assets/source/uniswap-home.png` only from a clean disposable
-  browser profile. Review the page for account, wallet, notification, and
-  browser-profile details before retaining it.
-- Copy the reviewed source captures to `store-assets/source/`, then run
-  `npm run store:screenshots` and `npm run brand:verify`.
-- Never replace the synthetic fixtures with a usable pairing code, funded wallet
-  address, real transaction identifier, browser-profile detail, recovery
-  material, or hardware-wallet identifier.
-- Store screenshots are listing assets and are intentionally not embedded in the
-  extension ZIP.
+Mention that 0.1.1 removed browser names and runtime extension UUIDs from
+Companion authentication. Wren checks Firefox's browser-supplied Origin header
+for the live connection and does not store those identifiers.
 
-Reviewer test steps:
+After signing, install the signed package in regular Firefox. Check pairing,
+connection, account and network events, reset, and revocation before publication.
 
-1. Install and start the staged Wren desktop build whose commit is at or after
-   the minimum commit in the submitted compatibility artifact.
-2. Open the Companion popup, compare its six-digit code with Wren, and approve
-   pairing in Wren.
-3. Visit a dapp. Wren is announced through EIP-6963, and connection requests
-   appear in the desktop wallet.
-4. No account or paid service is required; disposable accounts are recommended.
+## Reviewer steps
 
-Choose deferred publishing so the approved listing can be checked before it is
-public. After approval, check the listing and package version, then publish
-within 30 days. When the listing is live, install it in a clean browser profile
-and repeat the reviewer tests above.
-
-## Mozilla Add-ons
-
-In Add-ons Developer Hub, submit a new add-on **On this site** and upload the
-Firefox ZIP. The manifest UUID is unique to Wren Companion. Select desktop
-Firefox and say that additional free software (Wren desktop) is required.
-
-When asked whether source is required, choose **Yes** and upload the matching
-reviewer-source ZIP. Put the reviewer test steps above in Notes for Reviewers,
-link to `MOZILLA_REVIEW.md` in the source archive, select GPL-3.0-only, provide
-the shared listing copy and privacy policy, and copy the third-party source links
-from `MOZILLA_REVIEW.md`. The manifest's required data-transmission categories
-are financial and payment information, authentication information, browsing
-activity, and website content; all transmission is only to local Wren and is
-necessary for the primary function. Then submit for signing and review.
-
-In Notes for Reviewers, explicitly state that 0.1.1 removed the browser name and
-runtime extension UUID previously sent by 0.1.0. Do not select
-`technicalAndInteraction`: 0.1.2 has no technical/interaction analytics,
-telemetry, or feature. Firefox's browser-supplied WebSocket Origin is validated
-transiently by Wren and is neither emitted by Companion code nor persisted.
-
-After Mozilla signs the version, install the signed file in regular Firefox and
-repeat pairing, connection, account/chain event, reset, and revocation checks
-before linking it from the desktop repository.
+1. Install and start the compatible Wren desktop build.
+2. Open Companion, compare its six-digit code with Wren, and approve pairing.
+3. Visit an Ethereum app. Wren appears through EIP-6963; connection requests
+   open in the desktop wallet.
+4. Use test accounts. No paid service is required.

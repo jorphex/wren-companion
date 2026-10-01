@@ -1,91 +1,78 @@
 # Mozilla Reviewer Build Instructions
 
-In plain terms, the extension sends wallet requests only to Wren on the same
-computer. The sections below provide the build, protocol, and data details
-needed for review.
+Companion sends wallet requests only to Wren on the same computer at
+`ws://127.0.0.1:1248`. Wren handles account access, approvals, and signing.
+The Firefox ZIP is built with webpack and has matching reviewer source.
+Executable code is bundled; there is no obfuscation or remote executable code.
 
-Wren Companion is derived from the GPL-3.0 `frame-labs/frame-extension`
-project. It adds mutually authenticated protocol-3 pairing, strict origin and
-document routing, EIP-6963 discovery, Manifest V3 support, and current browser
-and dependency maintenance.
+Companion is based on the GPL-3.0 `frame-labs/frame-extension` project.
+It adds protocol-3 pairing, document-specific routing, EIP-6963 discovery,
+and Manifest V3 support.
 
-The submitted Firefox ZIP is generated with webpack and has matching reviewer
-source attached. It contains no obfuscation or remote executable code.
+## Data declaration
 
-## Data-transmission declaration
+The Firefox manifest declares four required data types for local communication
+with Wren:
 
-The extension communicates only with Wren desktop at
-`ws://127.0.0.1:1248`. Mozilla defines data handled outside the add-on or local
-browser as transmitted, so the Firefox manifest declares the following required
-data types:
+- `financialAndPaymentInfo`: accounts, messages, transactions, and results in
+  wallet requests and replies.
+- `authenticationInfo`: pairing and authentication material.
+- `browsingActivity`: the requesting site's origin.
+- `websiteContent`: wallet request data from the document and replies to it.
 
-- `financialAndPaymentInfo`: wallet JSON-RPC messages can include accounts,
-  messages, proposed transactions, and transaction results.
-- `authenticationInfo`: the extension and Wren exchange pairing and
-  authentication material for their local mutually authenticated connection.
-- `browsingActivity`: each request includes the exact requesting origin so Wren
-  can isolate and present the dapp identity.
-- `websiteContent`: wallet JSON-RPC request and response data originates from
-  and returns to the requesting document.
+The browser's full page URL identifies the document locally. Only the origin
+goes to Wren. The maintainer receives none of this data. There is no telemetry,
+analytics, advertising, cloud account, or developer-operated service.
+See [Privacy](PRIVACY.md) for retention and permissions.
 
-The maintainer receives none of this data. There is no telemetry, analytics,
-advertising, cloud account, or developer-operated service. The declaration is
-required because Wren is a separate local application, not because data leaves
-the user's computer.
+## Version details
 
-### Version 0.1.1 policy remediation
+### 0.1.3: Connection retries
 
-Version 0.1.0 explicitly included the browser name and runtime extension UUID in
-its local authentication hello. Version 0.1.1 removes those fields from every
-browser build. The signed installation ID and control/page public-key bundle are
-the only Companion identity sent by the add-on and retained by Wren.
+Connection checks stop after three seconds. Each attempt has its own ID, so
+late replies cannot cancel a retry or change its network. Failed attempts
+release queued requests and timers. Transaction and approval requests keep
+their existing wait behavior.
 
-Firefox itself supplies a `moz-extension://...` Origin header when opening the
-loopback WebSocket. Wren validates this browser-supplied header as live transport
-security evidence and immediately discards the browser name/runtime UUID; neither
-application persists it. There is no technical/interaction analytics, telemetry,
-feature, or optional collection to declare. Automated protocol and packaged-
-artifact checks reject reintroduction of the removed hello fields.
+Protocol 3, permissions, and data types are unchanged. Use Wren 0.1.11 or a
+later compatible build; the exact minimum commit is in `compatibility.json`.
 
-### Version 0.1.2 compatibility update
+### 0.1.2: Site compatibility
 
-Version 0.1.2 retains the same protocol and data-transmission boundary. It adds
-compatibility for dapps that use MetaMask's legacy provider marker as a generic
-EIP-1193 gate, while Wren remains separately identified through EIP-6963. A
-top-level content script now opens a lightweight browser-runtime port before the
-first dapp RPC, allowing the popup to establish the active tab without opening a
-desktop socket eagerly. Same-origin contract frames are aggregated without
-downgrading a usable tab.
+Wren can present a legacy MetaMask provider marker while keeping its own
+EIP-6963 identity. This supports apps that use the marker to check compatibility.
+A top-level runtime port lets the popup identify the active tab before the
+first wallet request, without opening a desktop socket. Same-origin frames
+retain the top-level tab's connection status.
 
-The new `storage` permission retains only the last network catalog successfully
-read from local Wren. This prevents a Manifest V3 background restart or transient
-localhost refresh failure from replacing known networks with an unavailable
-screen. The cache contains no accounts, requests, transactions, page content, or
-private keys and is cleared when pairing is reset.
+The `storage` permission keeps the last network list from Wren through brief
+disconnects and background restarts. It contains no accounts, requests,
+transactions, page content, or private keys. Pairing reset clears it.
 
-Version 0.1.2 also binds popup identity changes to the exact top-level document.
-Chromium uses the browser's `documentId`; on Firefox versions that do
-not provide it to `scripting.executeScript`, a per-document random nonce supplies
-the same fail-closed identity. A navigation or same-origin document replacement
-invalidates the captured target before any write or reload.
+Popup setting changes target the exact document. Chrome uses `documentId`;
+Firefox uses a per-document random nonce when that API does not supply an ID.
+Navigation or document replacement invalidates the target before a write or reload.
 
-Explorer qualification covers dapps that request their required chain before
-account access, including BaseScan's Base-chain flow, in both Wren and legacy
-MetaMask identity modes. The chain switch, chain confirmation, account request,
-and resulting events all travel through the same authenticated, origin-bound page
-channel.
+Explorer tests cover requests to switch networks before account access,
+including BaseScan, in Wren and legacy MetaMask modes. Requests and events use
+the authenticated, origin-specific page channel.
 
-## Build environment
+### 0.1.1: Authentication fields
 
-- Release build: Ubuntu/Pop!_OS 22.04 x64
-- Node.js: 24.18.1, pinned in `.nvmrc`
-- npm: 11.12.0, pinned in `package.json`
-- Dependencies: npm registry only, locked by `package-lock.json`
+Companion removed the browser name and runtime extension UUID sent by 0.1.0.
+Its signed installation ID and control/page public keys identify it to Wren.
+Firefox supplies its own `moz-extension://...` Origin header. Wren checks this
+for the live connection, then discards the browser identifiers before storing
+pairing. Neither app stores the runtime UUID.
 
-The build is architecture-independent and can run in Mozilla's ARM64 review
-environment with the pinned Node and npm versions.
+There is no technical/interaction analytics, optional collection, or related
+feature to declare. Protocol and artifact checks guard these field removals.
 
-## Reproduce the Firefox output
+## Build
+
+Use the pinned Node.js 24.18.1 and npm 11.12.0. Dependencies come from the npm
+registry and are locked in `package-lock.json`. The build runs on x64 and ARM64;
+the release build uses Ubuntu/Pop!_OS 22.04 x64.
 
 From the source archive root:
 
@@ -94,30 +81,27 @@ npm ci
 npm run build:firefox
 ```
 
-The complete extension is written to `dist-firefox/`, and `build:firefox`
-validates its inventory and manifest. With the submitted ZIP available beside
-the source archive:
+Output is in `dist-firefox/`. The build checks its manifest and file inventory.
+Compare it with the submitted ZIP:
 
 ```bash
 mkdir submitted
-unzip wren-companion-0.1.2-firefox.zip -d submitted
+unzip wren-companion-0.1.3-firefox.zip -d submitted
 diff -qr dist-firefox submitted
 ```
 
-Create the release package with `npm run package:browsers` and verify it with
+Create release packages with `npm run package:browsers` and verify them with
 `npm run package:verify`.
 
-## Functional test
+## Test
 
-Wren desktop must be running locally. Open the extension, compare the six-digit
-pairing code in both interfaces, and approve the companion in Wren. Then open a
-dapp or this repository's local qualification page. No account or paid service
-is required; use disposable test accounts only.
+Start compatible Wren desktop, open Companion, compare the six-digit codes,
+and approve pairing. Open an Ethereum app or the local test page served by
+`npm run qualify:serve`. Use test accounts; no paid service is required.
 
-## Included third-party runtime libraries
+## Third-party runtime source
 
-All exact versions are locked in `package-lock.json` and downloaded from the
-official npm registry during `npm ci`. Upstream source repositories:
+Exact versions are in `package-lock.json`.
 
 - Babel runtime: https://github.com/babel/babel/tree/main/packages/babel-runtime
 - events: https://github.com/Gozala/events
@@ -125,5 +109,5 @@ official npm registry during `npm ci`. Upstream source repositories:
 - React Scheduler: https://github.com/facebook/react/tree/main/packages/scheduler
 - react-restore: https://github.com/floating/restore
 - styled-components: https://github.com/styled-components/styled-components
-- Emotion property validation and memoization: https://github.com/emotion-js/emotion
+- Emotion: https://github.com/emotion-js/emotion
 - Stylis: https://github.com/thysultan/stylis.js

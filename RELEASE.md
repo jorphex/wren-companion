@@ -1,23 +1,15 @@
 # Companion Release Procedure
 
-## Release boundary
+Companion has its own version. A desktop update needs a Companion release only
+when it changes extension behavior or protocol compatibility.
+[`compatibility.json`](compatibility.json) records the protocol and minimum
+desktop commit.
 
-Companion is versioned independently from Wren desktop. Each release declares
-its authentication protocol and minimum compatible desktop commit in
-[`compatibility.json`](compatibility.json). It works with later desktop releases
-that retain that protocol; desktop UI, signer, or wallet-feature changes do not
-require another browser-store submission.
+## Prepare and build
 
-The release contains separate Chrome and Firefox Manifest V3 ZIPs. The Firefox
-package has its own add-on ID and matching reviewer-source ZIP; it neither
-claims nor updates the upstream Frame listings. Protocol 3 mutually authenticates
-the Wren installation and Companion control/page key bundle after explicit code
-comparison. A compromised host or browser profile remains inside the trusted
-computing base. See [Security](SECURITY.md) and [Privacy](PRIVACY.md).
-
-## Local gate
-
-Start from a clean, reviewed commit with the pinned toolchain:
+Use a clean, reviewed commit. Match the version in `package.json`,
+`package-lock.json`, and `src/manifest.json`. Update the matching release notes
+and compatibility record.
 
 ```bash
 nvm install
@@ -29,43 +21,43 @@ npm run package:browsers
 npm run package:verify
 ```
 
-`artifacts/` must contain Chrome and Firefox ZIPs, Firefox reviewer source,
-compatibility metadata, a production CycloneDX SBOM, and `SHA256SUMS`. Repeating
-the package commands from the same commit and lockfile must reproduce every
-checksum.
+`artifacts/` contains separate Chrome and Firefox ZIPs, Mozilla reviewer
+source, compatibility metadata, a production CycloneDX SBOM, and `SHA256SUMS`.
+The same commit and lockfile must reproduce the same checksums.
 
-## GitHub draft release
+## Test the candidate
 
-Push the exact `v<package version>` tag from the reviewed commit. The release
-workflow reruns the gate, verifies the minimum desktop commit is on the
-configured branch, emits provenance and SBOM attestations, and creates a draft
-release using `release-notes/v<package version>.md`. It will not modify an
-existing release or reuse a tag bound to another commit.
+Use test accounts and disposable browser profiles on an isolated display.
+Keep test windows off the active desktop.
 
-If a draft is unusable, delete the complete draft or bump the package version;
-never combine artifacts from separate runs. Publishing a GitHub draft does not
-submit to a browser store.
+1. Check `SHA256SUMS` and GitHub attestations.
+2. Extract the Chrome ZIP and load it unpacked in current stable Chrome.
+   Load the Firefox ZIP as a temporary add-on in current stable Firefox.
+3. Pair with the compatible desktop build and compare the six-digit codes.
+4. Check discovery, site access, account and network events, rejection,
+   reconnect, reset, and desktop revocation.
+5. Check tab and frame isolation. Each document must receive only its own
+   replies, events, and subscriptions.
+6. Check delayed connection replies and retries. Old attempts must not change
+   the new attempt or its network.
 
-## Manual qualification
+Follow the paired [desktop checklist](https://github.com/jorphex/wren/blob/main/QUALIFICATION.md)
+for signing and device tests.
 
-Before GitHub or store publication, use disposable accounts and browser profiles
-on an isolated display. Do not load qualification builds in a daily-use profile
-or put test windows on the active desktop.
+## Create the draft
 
-1. Verify `SHA256SUMS` and GitHub attestations.
-2. Load the Chrome ZIP unpacked in current stable Chrome and the Firefox ZIP
-   temporarily in current stable Firefox, using only disposable profiles.
-3. Pair each clean profile with a protocol-3 Wren desktop and compare the
-   six-digit code in both interfaces.
-4. Confirm EIP-6963 and legacy discovery, connection approval, account and
-   chain events, rejection, reconnect, extension reset, and desktop revocation.
-5. Confirm that tabs, iframes, and browser profiles never receive another
-   document's response, event, subscription, or pairing authority.
+Push `v<package version>` from the reviewed commit. The workflow checks the
+minimum desktop commit, rebuilds and verifies the packages, records build and
+SBOM attestations, and creates a draft from the matching release notes.
 
-## Store publication
+The workflow keeps existing releases and tags unchanged. Use a new version
+for an existing release. For a failed draft, use a new version or remove the
+complete draft before rebuilding. Keep files from one build together.
 
-Store credentials and publication are manual and external. Follow
-[Store submission](STORE_SUBMISSION.md), submit only the exact verified browser
-ZIP, and give Mozilla the matching source ZIP. A new Companion update is needed
-only for Companion behavior, security, permissions, or an incompatible
-protocol.
+## Submit to stores
+
+GitHub publication and browser-store submission are separate steps. Follow
+[Store submission](STORE_SUBMISSION.md). Upload each verified browser ZIP and
+give Mozilla its matching source ZIP. Test the signed Firefox package before
+publication. Pairing and data handling are described in [Security](SECURITY.md)
+and [Privacy](PRIVACY.md).

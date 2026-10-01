@@ -1,53 +1,46 @@
 # Security Policy
 
-For data handling and retention, see [Privacy](PRIVACY.md).
+Security fixes target the latest published
+[Wren Companion release](https://github.com/jorphex/wren-companion/releases).
+Local builds and development branches are test versions. See [Privacy](PRIVACY.md)
+for data handling and retention.
 
-## Scope and support
+## Using Companion
 
-Only the newest release published by
-[`jorphex/wren-companion`](https://github.com/jorphex/wren-companion/releases)
-is considered for security fixes. Development branches and local builds are
-unsupported previews.
+Companion routes browser requests to Wren. Account access, approvals, signing,
+and sending happen in the desktop wallet. Compare the six-digit codes when
+pairing and review requests in Wren and, when available, on your hardware device.
 
-Companion is not a wallet or signer. It injects an EIP-1193 provider and routes
-requests to the separately installed Wren desktop wallet. Never enter a seed
-phrase, private key, or hardware-wallet PIN in the extension or a dapp page.
+Keep recovery phrases, wallet private keys, and hardware PINs out of the
+extension and websites.
 
-For normal use, compare the six-digit code before you pair. Review every request
-in Wren. Keep your computer and browser profile secure.
+## Connection boundary
 
-## Security boundary
+Browser APIs identify the requesting origin, tab, frame, and document. Page
+messages cannot set this authority. Each document has a separate connection
+with bounded queues and receives only its own replies, events, and subscriptions.
 
-- Browser APIs supply the requesting origin, tab, frame, and document; page
-  payloads cannot supply that authority. Each document has an isolated, bounded
-  localhost WebSocket and receives only its own responses, events, and
-  subscriptions.
-- After an explicit six-digit approval, protocol 3 mutually authenticates the
-  Wren installation and Companion's nonextractable, per-installation P-256
-  control/page key bundle. Signed role- and channel-bound transcripts prevent
-  one key or session from being reused for another role.
-- Exact pinned reconnects are silent. Desktop or Companion identity changes
-  fail closed and require explicit recovery; key rotation retains the prior
-  bundle until a signed final acknowledgement and a successful reconnect prove
-  adoption. A compromised host or browser profile remains in the trusted
-  computing base despite the localhost identity check.
-- Web-page code shares the page's provider environment and can replace or wrap
-  injected JavaScript. It is not trusted, and the bridge stores no wallet
-  authority. Browser-profile compromise, malicious extensions with sufficient
-  privileges, host or dependency compromise, and unreviewed binaries are
-  outside the pairing protocol's guarantees.
+After code approval, protocol 3 authenticates both Wren and Companion.
+Companion holds nonextractable P-256 pairing keys. Signed messages bind each
+key and session to its role and channel. These keys do not hold wallet
+signing authority.
 
-Wren remains the approval, permission, account, signing, and broadcast
-authority. Review every request in Wren and, where available, on the hardware
-device.
+Known identities reconnect without another prompt. Identity changes require
+recovery. During key rotation, Companion keeps the old keys until Wren's
+signed acknowledgement and a successful reconnect confirm the new keys.
+
+Website code can wrap or replace the page provider. The bridge therefore holds
+no wallet authority. Pairing protects local connection identity; it cannot
+protect a compromised computer, browser profile, privileged extension,
+dependency, or unreviewed binary.
 
 ## Report a vulnerability
 
-Do not include private keys, seed phrases, real pairing credentials, or valuable
-account data. Use GitHub's private vulnerability-reporting path for this
-repository when available; otherwise contact the maintainer privately through
-the repository owner's GitHub profile before opening a public issue.
+Use this repository's private GitHub vulnerability reporting when available.
+Otherwise contact the maintainer through the repository owner's GitHub profile
+before opening a public issue.
 
-Include the affected commit or release, browser and version, desktop build,
-impact, and reproducible steps using disposable accounts. Do not test another
-person's browser profile, wallet, device, dapp, or funds.
+Include the release or commit, browser version, Wren build, impact, and steps
+to reproduce with test accounts. Leave out secrets, real pairing credentials,
+and valuable account data. Test only profiles, wallets, devices, and sites you
+have permission to use.

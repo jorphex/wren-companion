@@ -1,84 +1,69 @@
 # Privacy Policy
 
-Effective: August 22, 2026
+Effective: October 1, 2026
 
-Wren Companion connects Ethereum apps in your browser to Wren on the same
-computer. It has no analytics, advertising, telemetry, remote code, cloud
-account, or service operated by the developer.
+Wren Companion sends wallet requests to Wren on the same computer. It has no
+analytics, advertising, telemetry, cloud account, developer-operated service,
+or remotely hosted executable code.
 
-## What the extension handles
+## Data handled
 
-When a site asks Wren to do something, the extension handles the wallet request
-and response. This data can include account addresses, network identifiers,
-messages, and proposed transactions.
+Wallet requests and replies can contain account addresses, network IDs,
+messages, proposed transactions, and results.
 
-The browser also gives the extension the full URL of the page making the
-request. The extension uses the URL on your device to keep each request tied to
-the correct page. It sends only the site's origin, such as
-`https://app.example.com`, with wallet messages to Wren at
-`ws://127.0.0.1:1248`. It does not send the URL path, query, or fragment to Wren,
-the maintainer, or another third party.
+The browser supplies the requesting page's full URL. Companion uses it locally
+to keep each request tied to the correct page. Only the site's origin, such as
+`https://app.example.com`, goes to Wren with wallet messages at
+`ws://127.0.0.1:1248`. URL paths, queries, and fragments stay on your device.
 
-Browser stores call these data types financial and payment information,
-authentication information, browsing activity, and website content. These
-labels describe data that can pass locally between a site and Wren. The
-maintainer does not collect or receive it.
+Browser stores classify this local exchange as financial and payment
+information, authentication information, browsing activity, and website
+content. The maintainer receives none of it.
 
-Wren and a site may separately communicate with network providers or other
-services selected by their operators. Those communications are outside
-Companion and are governed by their respective policies.
+Wren and websites may use their own network providers and services. Their
+policies cover those requests.
 
-## Local storage and browser access
+## Data kept on your device
 
-The extension stores a nonextractable P-256 key bundle and the identity of the
-paired Wren installation in browser IndexedDB. These values let the two apps
-recognize each other. They are not wallet private keys and cannot sign
-transactions. They remain until you reset pairing or remove the extension.
+- **Pairing:** Browser IndexedDB holds nonextractable P-256 keys and the paired
+  Wren installation's identity. These keys identify the apps; they cannot sign
+  wallet transactions. Resetting pairing or removing Companion clears them.
+- **Networks:** Browser storage keeps the last network list from Wren: IDs,
+  names, availability, and test-network labels. This keeps the popup useful
+  during disconnects and background restarts. The list has no accounts,
+  transactions, private keys, or page content. Pairing reset or removal clears it.
+- **Site preference:** An optional per-site setting presents Wren as a legacy
+  MetaMask provider. The browser stores this choice for that site.
 
-The extension also stores the last network list it received from Wren. This list
-contains network identifiers, names, availability, and test-network labels. It
-keeps the popup useful during a brief local disconnect or browser background
-restart. It contains no account, transaction, private-key, or page-content data.
-It is cleared when you reset pairing or remove the extension.
+Request routing, account and network state, and pending messages otherwise
+stay in memory.
 
-Companion code does not add or store the browser name or the browser's runtime
-extension UUID. Firefox and Chromium attach an extension Origin header to the
-local WebSocket. Wren checks this header for the live local connection, then
-discards the browser name and runtime UUID before it creates or stores pairing
-state. Companion collects no technical or interaction analytics.
+Companion does not add or store browser names or runtime extension UUIDs.
+Browsers attach an Origin header to the local WebSocket. Wren checks it for
+the connection, then discards those browser identifiers before storing pairing.
 
-An optional site setting can make Wren appear as a legacy MetaMask provider.
-The browser stores this choice only for that site. Request routing, account and
-network state, and pending messages otherwise remain in memory.
+## Browser access
 
-HTTP and HTTPS access lets Companion offer Wren to sites you visit. It does not
-scrape page content or browsing history. The other browser permissions support
-the same purpose:
+HTTP and HTTPS access lets Companion offer Wren to websites. It does not scrape
+page content or browsing history.
 
-- `scripting` reads or changes the current site's Wren/MetaMask setting and
-  keeps that action tied to the correct page.
-- `storage` retains the local network list described above.
-- `alarms` keeps the local Wren connection state current.
+- `scripting` reads or changes the current site's provider setting and ties the
+  action to the correct page.
+- `storage` keeps the network list above.
+- `alarms` refreshes local connection state.
 
-## Collection and sharing
-
-The maintainer does not collect, retain, sell, or share user data. All handling
-above occurs locally on the user's device, and the extension does not execute
-remotely hosted code.
+The maintainer does not collect, retain, sell, or share user data. Companion's
+handling takes place on your device.
 
 ## Chrome Web Store Limited Use
 
 The use of information received from Google APIs will adhere to the Chrome Web
 Store User Data Policy, including the Limited Use requirements.
 
-Wren Companion's use of information received from Chrome APIs is limited to
-providing its single purpose: connecting Ethereum apps in the browser to the
-user's locally running Wren wallet. It does not use or transfer that information
-for advertising, creditworthiness, lending, or any unrelated purpose. It does
-not sell user data or allow humans to read it. The only transfer is to the
-user's local Wren application when necessary to provide the requested wallet
-feature.
+Chrome API data is used only to connect browser apps to your local Wren wallet.
+It is transferred only to local Wren when needed for your wallet request. It is
+not sold, made available for human review, or used for advertising,
+creditworthiness, lending, or unrelated purposes.
 
-For privacy reports, use the private contact method in [Security](SECURITY.md),
-or file a public issue when appropriate in the
-[issue tracker](https://github.com/jorphex/wren-companion/issues).
+For a private privacy report, use [Security](SECURITY.md). General questions can
+use the [issue tracker](https://github.com/jorphex/wren-companion/issues).
