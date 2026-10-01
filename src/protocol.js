@@ -32,6 +32,15 @@ function validId(id) {
   )
 }
 
+function validConnectionGeneration(message) {
+  if (!Object.prototype.hasOwnProperty.call(message, 'generation')) return true
+  return (
+    message.type === 'connection' &&
+    Number.isSafeInteger(message.generation) &&
+    message.generation > 0
+  )
+}
+
 function responseId(value) {
   return isObject(value) && validId(value.id) ? value.id : null
 }
@@ -160,5 +169,6 @@ module.exports = {
   parseDesktopMessage,
   parsePageRequest,
   serializedSize,
+  validConnectionGeneration,
   validId
 }

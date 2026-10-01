@@ -4,6 +4,7 @@ const {
   parseDesktopMessage,
   parsePageRequest,
   serializedSize,
+  validConnectionGeneration,
   validId
 } = require('./protocol')
 const { clearTimer: clearBrowserTimer, setTimer: setBrowserTimer } = require('./timers')
@@ -14,6 +15,7 @@ const MAX_QUEUED_BYTES = 512 * 1024
 const MAX_SOCKET_BUFFERED_BYTES = 2 * 1024 * 1024
 const MAX_CONTROL_REQUESTS = 4
 const CONTROL_REQUEST_TIMEOUT_MS = 5 * 60 * 1000
+const HANDSHAKE_TIMEOUT_MS = 3000
 const REQUEST_RATE_LIMIT = 300
 const REQUEST_RATE_WINDOW_MS = 10 * 1000
 const RECONNECT_DELAYS = [250, 500, 1000, 2000, 5000]
@@ -98,6 +100,7 @@ class PageSession {
     this.everUsed = false
     this.closed = false
     this.connected = false
+    this.connectionGeneration = 0
     this.pageConnectionConfirmed = false
     this.currentChain = ''
 
@@ -113,7 +116,8 @@ class PageSession {
       !message ||
       typeof message !== 'object' ||
       Array.isArray(message) ||
-      Object.keys(message).some((key) => key !== 'type' && key !== 'payload')
+      Object.keys(message).some((key) => !['type', 'payload', 'generation'].includes(key)) ||
+      !validConnectionGeneration(message)
     ) {
       return
     }
@@ -136,11 +140,19 @@ class PageSession {
     if (!this.allowRequest()) {
       return this.postRpc(errorResponse(request.id, -32005, 'Request rate limit exceeded'))
     }
-    if (this.pageIds.size >= MAX_PENDING_REQUESTS) {
-      return this.postRpc(errorResponse(request.id, -32005, 'Too many pending requests'))
-    }
     if (this.pageIds.has(request.id)) {
       return this.postRpc(errorResponse(request.id, -32600, 'Duplicate request id'))
+    }
+    const generation = connectionMessage ? (message.generation ?? 0) : undefined
+    if (connectionMessage && generation < this.connectionGeneration) {
+      return this.postRpc(errorResponse(request.id, 4900, 'Wren connection changed'))
+    }
+    if (connectionMessage && generation > this.connectionGeneration) {
+      this.rejectConnectionReads(4900, 'Wren connection changed', this.connectionGeneration)
+      this.connectionGeneration = generation
+    }
+    if (this.pageIds.size >= MAX_PENDING_REQUESTS) {
+      return this.postRpc(errorResponse(request.id, -32005, 'Too many pending requests'))
     }
 
     this.pageIds.add(request.id)
@@ -151,7 +163,8 @@ class PageSession {
         type: 'page',
         pageId: request.id,
         method: request.method,
-        connectionMessage
+        connectionMessage,
+        generation
       },
       connectionMessage
     )
@@ -217,7 +230,18 @@ class PageSession {
       return this.rejectEntry(request.id, pending, -32005, 'Extension request capacity exceeded')
     }
 
-    this.pending.set(request.id, { ...pending, bytes })
+    const entry = { ...pending, bytes }
+    if (pending.type === 'page' && connectionMessage) {
+      entry.timer = this.setTimer(() => {
+        if (this.pending.get(request.id) !== entry) return
+        this.pending.delete(request.id)
+        this.removeQueued(request.id)
+        this.releaseEntry(entry)
+        this.rejectConnectionReads(4900, 'Wren connection timed out', entry.generation)
+        this.rejectEntry(request.id, entry, 4900, 'Wren connection timed out')
+      }, HANDSHAKE_TIMEOUT_MS)
+    }
+    this.pending.set(request.id, entry)
     this.everUsed = true
 
     if (this.socket?.readyState === WEB_SOCKET_OPEN) {
@@ -229,8 +253,8 @@ class PageSession {
 
     if (this.queue.length >= MAX_QUEUED_REQUESTS || this.queuedBytes + bytes > MAX_QUEUED_BYTES) {
       this.pending.delete(request.id)
-      this.releaseEntry({ ...pending, bytes })
-      return this.rejectEntry(request.id, pending, -32005, 'Connection queue limit exceeded')
+      this.releaseEntry(entry)
+      return this.rejectEntry(request.id, entry, -32005, 'Connection queue limit exceeded')
     }
 
     this.queue.push({ id: request.id, serialized, bytes })
@@ -317,6 +341,13 @@ class PageSession {
           pending.resolve(payload.result)
         }
       } else {
+        if (pending.connectionMessage && pending.generation !== this.connectionGeneration) {
+          this.rejectEntry(payload.id, pending, 4900, 'Wren connection changed')
+          return
+        }
+        if (pending.connectionMessage && payload.error) {
+          this.rejectConnectionReads(payload.error.code, payload.error.message, pending.generation)
+        }
         if (!payload.error) this.confirmPageActivity(pending.method, payload.result)
         this.pageIds.delete(pending.pageId)
         this.postRpc({ ...payload, id: pending.pageId })
@@ -385,7 +416,19 @@ class PageSession {
   }
 
   releaseEntry(pending) {
+    this.clearTimer(pending.timer)
     if (pending.bytes) this.releaseRequest(pending.bytes)
+  }
+
+  rejectConnectionReads(code, message, generation) {
+    for (const [id, entry] of this.pending) {
+      if (entry.type !== 'page' || !entry.connectionMessage || entry.generation !== generation)
+        continue
+      this.pending.delete(id)
+      this.removeQueued(id)
+      this.releaseEntry(entry)
+      this.rejectEntry(id, entry, code, message)
+    }
   }
 
   rejectPending(code, message) {

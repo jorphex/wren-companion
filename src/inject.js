@@ -1,4 +1,9 @@
-const { errorResponse, parseDesktopMessage, parsePageRequest } = require('./protocol')
+const {
+  errorResponse,
+  parseDesktopMessage,
+  parsePageRequest,
+  validConnectionGeneration
+} = require('./protocol')
 const { createDocumentActionListener } = require('./document-actions')
 
 const BOOTSTRAP_SOURCE = 'frame:bootstrap'
@@ -118,7 +123,8 @@ function handlePageMessage(event) {
   }
   if (
     (message.type !== 'rpc' && message.type !== 'connection') ||
-    Object.keys(message).length !== 2
+    Object.keys(message).some((key) => !['type', 'payload', 'generation'].includes(key)) ||
+    !validConnectionGeneration(message)
   ) {
     return
   }
@@ -145,7 +151,11 @@ function handlePageMessage(event) {
   }
 
   try {
-    port?.postMessage({ type: message.type, payload: parsed.value })
+    port?.postMessage({
+      type: message.type,
+      payload: parsed.value,
+      ...(message.generation !== undefined && { generation: message.generation })
+    })
   } catch {
     port = undefined
     postToPage({

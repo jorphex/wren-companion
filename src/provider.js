@@ -1,5 +1,7 @@
 const EventEmitter = require('events')
 
+const HANDSHAKE_TIMEOUT_MS = 3000
+
 const subscriptionEvents = new Set([
   'accountsChanged',
   'assetsChanged',
@@ -25,6 +27,7 @@ class FrameProvider extends EventEmitter {
     this.subscriptionPromises = new Map()
     this.connected = false
     this.connecting = false
+    this.connectionGeneration = 0
     this.accounts = []
 
     for (const method of [
@@ -71,7 +74,12 @@ class FrameProvider extends EventEmitter {
     if (!Array.isArray(params) && (typeof params !== 'object' || params === null)) {
       return Promise.reject(providerError({ code: -32602, message: 'Invalid params' }))
     }
-    if (!connectionMessage && !this.connected) {
+    // Chain management must remain reachable when the assigned chain is disabled.
+    // The transport has already authenticated; desktop consent still applies.
+    const canSelectChain =
+      this.connection.connected &&
+      (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain')
+    if (!connectionMessage && !this.connected && !canSelectChain) {
       return this.waitForConnection().then(() =>
         this.doSend(method, params, chainId, connectionMessage)
       )
@@ -87,10 +95,27 @@ class FrameProvider extends EventEmitter {
     }
 
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { method, resolve, reject })
+      const timer = connectionMessage
+        ? setTimeout(() => {
+            this.pending.delete(id)
+            reject(providerError({ code: 4900, message: 'Wren connection timed out' }))
+          }, HANDSHAKE_TIMEOUT_MS)
+        : undefined
+      this.pending.set(id, {
+        method,
+        resolve,
+        reject,
+        timer,
+        generation: connectionMessage ? this.connectionGeneration : undefined
+      })
       try {
-        this.connection.send(payload, connectionMessage)
+        this.connection.send(
+          payload,
+          connectionMessage,
+          connectionMessage ? this.connectionGeneration : undefined
+        )
       } catch (error) {
+        clearTimeout(timer)
         this.pending.delete(id)
         reject(providerError(error, 4900))
       }
@@ -127,13 +152,21 @@ class FrameProvider extends EventEmitter {
       const pending = this.pending.get(payload.id)
       if (!pending) return
       this.pending.delete(payload.id)
+      clearTimeout(pending.timer)
+      if (pending.generation !== undefined && pending.generation !== this.connectionGeneration) {
+        return pending.reject(providerError({ code: 4900, message: 'Wren connection changed' }))
+      }
       if (payload.error) return pending.reject(providerError(payload.error))
 
       if (pending.method === 'eth_accounts' || pending.method === 'eth_requestAccounts') {
         if (this.updateAccounts(payload.result)) this.emit('accountsChanged', this.accounts)
-      } else if (pending.method === 'eth_chainId' && typeof payload.result === 'string') {
+      } else if (
+        pending.generation === undefined &&
+        pending.method === 'eth_chainId' &&
+        typeof payload.result === 'string'
+      ) {
         this.providerChainId = payload.result
-      } else if (pending.method === 'net_version') {
+      } else if (pending.generation === undefined && pending.method === 'net_version') {
         this.networkVersion = payload.result
       }
 
@@ -173,29 +206,43 @@ class FrameProvider extends EventEmitter {
   async handleConnect() {
     if (this.connected || this.connecting) return
     this.connecting = true
+    const generation = ++this.connectionGeneration
+    clearTimeout(this.connectRetryTimer)
     try {
       const [networkVersion, chainId] = await Promise.all([
         this.doSend('net_version', [], undefined, true),
         this.doSend('eth_chainId', [], undefined, true)
       ])
+      if (generation !== this.connectionGeneration) return
       this.networkVersion = networkVersion
       this.providerChainId = chainId
       this.connected = true
       this.emit('connect', { chainId: this.chainId })
       for (const event of subscriptionEvents) this.ensureSubscription(event)
-    } catch {
-      if (this.connection.connected) {
+    } catch (error) {
+      // A failed identity pair must not publish its sibling's late reply.
+      for (const [id, pending] of this.pending) {
+        if (pending.generation !== generation) continue
+        this.pending.delete(id)
+        clearTimeout(pending.timer)
+        pending.reject(error)
+      }
+      if (generation === this.connectionGeneration && this.connection.connected) {
         clearTimeout(this.connectRetryTimer)
-        this.connectRetryTimer = setTimeout(() => this.handleConnect(), 4000)
+        this.connectRetryTimer = setTimeout(
+          () => this.handleConnect(),
+          error?.code === 4900 ? 250 : 4000
+        )
       }
     } finally {
-      this.connecting = false
+      if (generation === this.connectionGeneration) this.connecting = false
     }
   }
 
   handleDisconnect() {
     const wasConnected = this.connected
     const shouldEmit = wasConnected || this.pending.size > 0
+    this.connectionGeneration += 1
     this.connected = false
     this.connecting = false
     clearTimeout(this.connectRetryTimer)
@@ -204,7 +251,10 @@ class FrameProvider extends EventEmitter {
     this.subscriptionPromises.clear()
     this.emit('_frameTransportClose')
     const error = providerError({ code: 4900, message: 'Wren disconnected' })
-    for (const { reject } of this.pending.values()) reject(error)
+    for (const { reject, timer } of this.pending.values()) {
+      clearTimeout(timer)
+      reject(error)
+    }
     this.pending.clear()
     if (!shouldEmit) return
     this.emit('disconnect', error)

@@ -288,3 +288,104 @@ test('suppresses desktop chain events while manual targeting is active', () => {
   provider.setChain(undefined)
   assert.deepEqual(changes, ['0xa', '0x1'])
 })
+
+const flushHandshake = async () => {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+test('recovers a silent identity handshake without a page reload', async (context) => {
+  context.mock.timers.enable({ apis: ['setTimeout'] })
+  const connection = new FakeConnection()
+  connection.connected = true
+  const provider = new FrameProvider(connection)
+  connection.emit('connect')
+  const stale = connection.sent.slice()
+  connection.respond(stale[0], '1')
+  context.mock.timers.tick(3000)
+  await flushHandshake()
+  assert.equal(provider.connecting, false)
+  assert.equal(provider.pending.size, 0)
+  connection.respond(stale[1], '0xdead')
+  assert.equal(provider.connected, false)
+  context.mock.timers.tick(250)
+  await flushHandshake()
+  const [network, chain] = connection.sent.slice(-2)
+  connection.respond(network, '4663')
+  connection.respond(chain, '0x1237')
+  await flushHandshake()
+  assert.equal(provider.chainId, '0x1237')
+  assert.equal(provider.connected, true)
+  provider.close()
+})
+
+test('old handshake completion cannot unlock a new transport handshake', async () => {
+  const connection = new FakeConnection()
+  const provider = new FrameProvider(connection)
+  connection.emit('connect')
+  connection.emit('close')
+  connection.emit('connect')
+  await flushHandshake()
+  assert.equal(provider.connecting, true)
+  connection.emit('connect')
+  assert.equal(connection.sent.length, 4)
+  const [network, chain] = connection.sent.slice(-2)
+  connection.respond(network, '1')
+  connection.respond(chain, '0x1')
+  await flushHandshake()
+  assert.equal(provider.connected, true)
+  provider.close()
+})
+
+test('allows network switching over authenticated transport when assigned chain is disabled', async () => {
+  const connection = new FakeConnection()
+  connection.connected = true
+  const provider = new FrameProvider(connection)
+  connection.emit('connect')
+  for (const request of connection.sent.slice()) {
+    connection.emit('payload', { id: request.id, error: { code: 4901, message: 'Chain disabled' } })
+  }
+  await flushHandshake()
+  const switched = provider.request({
+    method: 'wallet_switchEthereumChain',
+    params: [{ chainId: '0x1237' }]
+  })
+  const request = connection.sent.at(-1)
+  assert.equal(request.method, 'wallet_switchEthereumChain')
+  assert.equal(connection.connectionMessages.at(-1), false)
+  connection.respond(request, null)
+  assert.equal(await switched, null)
+  provider.close()
+})
+
+for (const failedMethod of ['net_version', 'eth_chainId']) {
+  test(`discards a failed handshake's sibling after ${failedMethod} fails`, async (context) => {
+    context.mock.timers.enable({ apis: ['setTimeout'] })
+    const connection = new FakeConnection()
+    connection.connected = true
+    const provider = new FrameProvider(connection)
+    try {
+      connection.emit('connect')
+      const failed = connection.sent.find(({ method }) => method === failedMethod)
+      const sibling = connection.sent.find(({ method }) => method !== failedMethod)
+      connection.emit('payload', {
+        id: failed.id,
+        error: { code: 4900, message: 'Temporary failure' }
+      })
+      await flushHandshake()
+      assert.equal(provider.pending.size, 0)
+      context.mock.timers.tick(250)
+      const [network, chain] = connection.sent.slice(-2)
+      connection.respond(network, '4663')
+      connection.respond(chain, '0x1237')
+      await flushHandshake()
+      connection.respond(sibling, sibling.method === 'net_version' ? '1' : '0x1')
+      assert.equal(provider.connected, true)
+      assert.equal(provider.chainId, '0x1237')
+      assert.equal(provider.networkVersion, '4663')
+    } finally {
+      provider.close()
+    }
+  })
+}

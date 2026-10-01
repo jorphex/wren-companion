@@ -74,8 +74,12 @@ class PageConnection extends EventEmitter {
     this.queuedBytes += bytes
   }
 
-  send(payload, connectionMessage = false) {
-    this.post({ type: connectionMessage ? 'connection' : 'rpc', payload })
+  send(payload, connectionMessage = false, generation) {
+    this.post({
+      type: connectionMessage ? 'connection' : 'rpc',
+      payload,
+      ...(connectionMessage && generation !== undefined && { generation })
+    })
   }
 
   open() {
