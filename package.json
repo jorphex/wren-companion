@@ -64,7 +64,7 @@
   "dependencies": {
     "@babel/runtime": "7.29.7",
     "events": "3.3.0",
-    "react": "19.2.8",
+    "react": "19.3.0",
     "react-dom": "19.2.8",
     "react-restore": "0.6.2",
     "styled-components": "6.5.2"
