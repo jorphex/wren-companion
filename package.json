@@ -62,10 +62,10 @@
     "webpack-cli": "7.2.3"
   },
   "dependencies": {
-    "@babel/runtime": "7.29.7",
+    "@babel/runtime": "7.29.10",
     "events": "3.3.0",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "react-restore": "0.6.2",
     "styled-components": "6.5.3"
   },
