@@ -67,7 +67,7 @@
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-restore": "0.6.2",
-    "styled-components": "6.5.3"
+    "styled-components": "6.6.0"
   },
   "overrides": {
     "ws@>=8.0.0 <8.21.1": "8.21.1",
